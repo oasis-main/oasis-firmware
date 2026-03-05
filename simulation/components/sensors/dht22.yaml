@@ -1,0 +1,54 @@
+component:
+  id: dht22
+  name: DHT22 Temperature & Humidity Sensor
+  type: sensor
+  description: Digital temperature and humidity sensor with single-wire protocol
+  manufacturer: Aosong
+  datasheet_url: https://www.sparkfun.com/datasheets/Sensors/Temperature/DHT22.pdf
+  
+  inputs:
+    - name: temp_actual
+      type: analog
+      unit: "°C"
+      range_min: -40
+      range_max: 80
+      description: Actual ambient temperature (from physical model or test input)
+    - name: humidity_actual
+      type: analog
+      unit: "%"
+      range_min: 0
+      range_max: 100
+      description: Actual relative humidity
+      
+  outputs:
+    - name: temperature
+      type: single_wire
+      unit: "°C"
+      protocol: dht_protocol
+      resolution_bits: 16
+    - name: humidity
+      type: single_wire
+      unit: "%"
+      protocol: dht_protocol
+      resolution_bits: 16
+      
+  parameters:
+    accuracy_temp:
+      value: 0.5
+      unit: "°C"
+      description: Temperature accuracy ±0.5°C
+    accuracy_humidity:
+      value: 2.0
+      unit: "%"
+      description: Humidity accuracy ±2%
+    operating_voltage:
+      value: 3.3
+      unit: "V"
+      description: Operating voltage (3.3-5.5V)
+      
+  behavior:
+    model: gaussian
+    noise_stddev: 0.3
+    startup_delay_ms: 1000
+    read_interval_ms: 2000
+    response_time_ms: 2000

@@ -1,0 +1,57 @@
+component:
+  id: dc_motor
+  name: DC Motor with H-Bridge
+  type: actuator
+  description: Brushed DC motor controlled via H-bridge (L298N compatible)
+  manufacturer: Generic
+  
+  inputs:
+    - name: pwm_speed
+      type: pwm
+      unit: "%"
+      range_min: 0
+      range_max: 100
+      description: Speed control (duty cycle)
+    - name: direction
+      type: digital
+      description: Direction (0 = forward, 1 = reverse)
+    - name: enable
+      type: digital
+      description: Enable motor driver
+      
+  outputs:
+    - name: rpm
+      type: analog
+      unit: "RPM"
+      range_min: 0
+      range_max: 6000
+    - name: current_draw
+      type: analog
+      unit: "A"
+      description: Motor current consumption
+    - name: torque
+      type: analog
+      unit: "N·m"
+      
+  parameters:
+    nominal_voltage:
+      value: 12
+      unit: "V"
+    no_load_rpm:
+      value: 6000
+      unit: "RPM"
+    stall_torque:
+      value: 0.5
+      unit: "N·m"
+    stall_current:
+      value: 3.0
+      unit: "A"
+    no_load_current:
+      value: 0.2
+      unit: "A"
+      
+  behavior:
+    model: none
+    startup_delay_ms: 0
+    response_time_ms: 50
+    read_interval_ms: 10

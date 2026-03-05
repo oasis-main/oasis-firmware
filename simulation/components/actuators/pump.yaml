@@ -1,0 +1,53 @@
+component:
+  id: pump
+  name: Water Pump
+  type: actuator
+  description: Submersible or peristaltic water pump
+  manufacturer: Generic
+  
+  inputs:
+    - name: control
+      type: digital
+      description: On/off control
+    - name: pwm_speed
+      type: pwm
+      unit: "%"
+      range_min: 0
+      range_max: 100
+      description: Optional speed control for variable pumps
+      
+  outputs:
+    - name: state
+      type: digital
+      description: Current pump state
+    - name: flow_rate
+      type: analog
+      unit: "L/min"
+      description: Current flow rate
+    - name: power_consumption
+      type: analog
+      unit: "W"
+      
+  parameters:
+    max_flow_rate:
+      value: 2.0
+      unit: "L/min"
+    max_head:
+      value: 3.0
+      unit: "m"
+      description: Maximum lift height
+    voltage:
+      value: 12
+      unit: "V"
+    max_power:
+      value: 5
+      unit: "W"
+    pump_type:
+      value: "submersible"
+      description: submersible, peristaltic, or centrifugal
+      
+  behavior:
+    model: none
+    startup_delay_ms: 100
+    response_time_ms: 500
+    read_interval_ms: 100

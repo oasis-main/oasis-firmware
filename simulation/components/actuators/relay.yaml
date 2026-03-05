@@ -1,0 +1,44 @@
+component:
+  id: relay
+  name: Electromechanical Relay
+  type: actuator
+  description: Single-channel relay module with optocoupler isolation
+  manufacturer: Generic
+  
+  inputs:
+    - name: control
+      type: digital
+      description: Control signal (HIGH = relay on)
+      
+  outputs:
+    - name: state
+      type: digital
+      description: Current relay state (0 = off, 1 = on)
+    - name: power_output
+      type: analog
+      unit: "W"
+      description: Power delivered to load (when on)
+      
+  parameters:
+    max_voltage:
+      value: 250
+      unit: "V"
+    max_current:
+      value: 10
+      unit: "A"
+    coil_voltage:
+      value: 5
+      unit: "V"
+    active_low:
+      value: true
+      description: Control is active-low (common for relay modules)
+    load_power:
+      value: 100
+      unit: "W"
+      description: Connected load power
+      
+  behavior:
+    model: none
+    startup_delay_ms: 0
+    response_time_ms: 10
+    read_interval_ms: 100

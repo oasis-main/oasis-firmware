@@ -1,0 +1,50 @@
+component:
+  id: servo
+  name: Standard Servo Motor
+  type: actuator
+  description: PWM-controlled hobby servo motor (SG90 compatible)
+  manufacturer: Generic
+  
+  inputs:
+    - name: pwm_duty
+      type: pwm
+      unit: "us"
+      range_min: 500
+      range_max: 2500
+      description: PWM pulse width in microseconds
+      
+  outputs:
+    - name: angle
+      type: analog
+      unit: "°"
+      range_min: 0
+      range_max: 180
+      description: Current servo angle
+    - name: torque
+      type: analog
+      unit: "kg·cm"
+      description: Current torque output
+      
+  parameters:
+    min_pulse:
+      value: 500
+      unit: "us"
+    max_pulse:
+      value: 2500
+      unit: "us"
+    angle_range:
+      value: 180
+      unit: "°"
+    max_torque:
+      value: 1.8
+      unit: "kg·cm"
+    speed:
+      value: 0.1
+      unit: "s/60°"
+      description: Time to rotate 60 degrees
+      
+  behavior:
+    model: none
+    startup_delay_ms: 0
+    response_time_ms: 100
+    read_interval_ms: 20

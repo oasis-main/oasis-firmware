@@ -1,0 +1,45 @@
+component:
+  id: soil_moisture
+  name: Capacitive Soil Moisture Sensor
+  type: sensor
+  description: Capacitive soil moisture sensor with analog output
+  manufacturer: Generic
+  
+  inputs:
+    - name: moisture_actual
+      type: analog
+      unit: "%"
+      range_min: 0
+      range_max: 100
+      description: Actual volumetric water content
+      
+  outputs:
+    - name: moisture
+      type: analog
+      unit: "%"
+      range_min: 0
+      range_max: 100
+      resolution_bits: 12
+    - name: raw_adc
+      type: analog
+      unit: ""
+      range_min: 0
+      range_max: 4095
+      description: Raw ADC value (dry ~3000, wet ~1000)
+      
+  parameters:
+    dry_value:
+      value: 3000
+      description: ADC value when completely dry
+    wet_value:
+      value: 1000
+      description: ADC value when completely wet
+    operating_voltage:
+      value: 3.3
+      unit: "V"
+      
+  behavior:
+    model: gaussian
+    noise_stddev: 2.0
+    startup_delay_ms: 100
+    read_interval_ms: 1000

@@ -1,0 +1,59 @@
+component:
+  id: scd40
+  name: SCD40 CO2 Sensor
+  type: sensor
+  description: Photoacoustic CO2 sensor with temperature and humidity
+  manufacturer: Sensirion
+  datasheet_url: https://sensirion.com/media/documents/48C4B7FB/6426E14D/CD_DS_SCD40_SCD41_Datasheet_D1.pdf
+  
+  i2c_address: 0x62
+  
+  inputs:
+    - name: co2_actual
+      type: analog
+      unit: "ppm"
+      range_min: 400
+      range_max: 5000
+    - name: temp_actual
+      type: analog
+      unit: "°C"
+      range_min: -10
+      range_max: 60
+    - name: humidity_actual
+      type: analog
+      unit: "%"
+      range_min: 0
+      range_max: 100
+      
+  outputs:
+    - name: co2
+      type: i2c
+      unit: "ppm"
+      resolution_bits: 16
+    - name: temperature
+      type: i2c
+      unit: "°C"
+      resolution_bits: 16
+    - name: humidity
+      type: i2c
+      unit: "%"
+      resolution_bits: 16
+      
+  parameters:
+    accuracy_co2:
+      value: 50
+      unit: "ppm"
+      description: CO2 accuracy ±(50ppm + 5% of reading)
+    accuracy_temp:
+      value: 0.8
+      unit: "°C"
+    accuracy_humidity:
+      value: 6.0
+      unit: "%"
+      
+  behavior:
+    model: gaussian
+    noise_stddev: 15
+    startup_delay_ms: 1000
+    read_interval_ms: 5000
+    response_time_ms: 60000

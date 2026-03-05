@@ -1,0 +1,60 @@
+component:
+  id: bme280
+  name: BME280 Environmental Sensor
+  type: sensor
+  description: Combined temperature, humidity, and pressure sensor with I2C/SPI interface
+  manufacturer: Bosch
+  datasheet_url: https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf
+  
+  i2c_address: 0x76
+  
+  inputs:
+    - name: temp_actual
+      type: analog
+      unit: "°C"
+      range_min: -40
+      range_max: 85
+    - name: humidity_actual
+      type: analog
+      unit: "%"
+      range_min: 0
+      range_max: 100
+    - name: pressure_actual
+      type: analog
+      unit: "hPa"
+      range_min: 300
+      range_max: 1100
+      
+  outputs:
+    - name: temperature
+      type: i2c
+      unit: "°C"
+      resolution_bits: 20
+    - name: humidity
+      type: i2c
+      unit: "%"
+      resolution_bits: 16
+    - name: pressure
+      type: i2c
+      unit: "hPa"
+      resolution_bits: 20
+      
+  parameters:
+    accuracy_temp:
+      value: 1.0
+      unit: "°C"
+    accuracy_humidity:
+      value: 3.0
+      unit: "%"
+    accuracy_pressure:
+      value: 1.0
+      unit: "hPa"
+    oversampling:
+      value: 1
+      description: Oversampling setting (1, 2, 4, 8, 16)
+      
+  behavior:
+    model: gaussian
+    noise_stddev: 0.1
+    startup_delay_ms: 2
+    read_interval_ms: 1000

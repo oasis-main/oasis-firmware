@@ -1,0 +1,37 @@
+component:
+  id: light_sensor
+  name: BH1750 Light Sensor
+  type: sensor
+  description: Digital ambient light sensor with I2C interface
+  manufacturer: ROHM
+  datasheet_url: https://www.mouser.com/datasheet/2/348/bh1750fvi-e-186247.pdf
+  
+  i2c_address: 0x23
+  
+  inputs:
+    - name: lux_actual
+      type: analog
+      unit: "lux"
+      range_min: 0
+      range_max: 65535
+      
+  outputs:
+    - name: lux
+      type: i2c
+      unit: "lux"
+      resolution_bits: 16
+      
+  parameters:
+    accuracy:
+      value: 20
+      unit: "%"
+      description: Accuracy ±20%
+    mode:
+      value: "continuous_high_res"
+      description: Measurement mode
+      
+  behavior:
+    model: gaussian
+    noise_stddev: 10
+    startup_delay_ms: 180
+    read_interval_ms: 120

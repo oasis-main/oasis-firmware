@@ -1,0 +1,44 @@
+component:
+  id: led_strip
+  name: WS2812B LED Strip
+  type: actuator
+  description: Addressable RGB LED strip (NeoPixel compatible)
+  manufacturer: WorldSemi
+  
+  inputs:
+    - name: data
+      type: single_wire
+      protocol: ws2812b
+      description: Serial data input
+      
+  outputs:
+    - name: brightness
+      type: analog
+      unit: "%"
+      range_min: 0
+      range_max: 100
+    - name: power_consumption
+      type: analog
+      unit: "W"
+      description: Total power draw
+      
+  parameters:
+    num_leds:
+      value: 60
+      description: Number of LEDs in strip
+    voltage:
+      value: 5
+      unit: "V"
+    max_current_per_led:
+      value: 60
+      unit: "mA"
+      description: Maximum current per LED at full white
+    color_order:
+      value: "GRB"
+      description: Color byte order
+      
+  behavior:
+    model: none
+    startup_delay_ms: 0
+    response_time_ms: 1
+    read_interval_ms: 16
