@@ -19,6 +19,22 @@ impl Default for Tab {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum SimulationMode {
+    #[default]
+    Behavioral,
+    McuEmulator,
+    FullPhysics,
+}
+
+#[derive(Debug, Clone)]
+pub struct SimInstance {
+    pub id: String,
+    pub component_type: String,
+    pub x: f32,
+    pub y: f32,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AppState {
     pub current_tab: Tab,
@@ -31,6 +47,20 @@ pub struct AppState {
     pub mqtt_messages: Vec<MqttMessage>,
     pub simulation_running: bool,
     pub deployment_status: DeploymentStatus,
+    
+    // Simulation state
+    pub sim_mode: SimulationMode,
+    pub sim_time_ms: i64,
+    pub sim_paused: bool,
+    pub sim_instances: Vec<SimInstance>,
+    pub sim_selected_instance: Option<String>,
+    pub sim_signals: HashMap<String, f64>,
+    pub sim_waveform: Vec<f64>,
+    pub sim_step_requested: Option<i64>,
+    pub sim_fault_requested: Option<(String, String)>,
+    pub sim_input_override_temp: f64,
+    pub sim_input_override_humidity: f64,
+    pub sim_input_override_requested: bool,
 }
 
 #[derive(Debug, Clone, Default)]

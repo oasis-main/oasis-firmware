@@ -4,6 +4,7 @@ mod app;
 mod panels;
 mod state;
 mod mqtt_client;
+mod simulation_bridge;
 
 use eframe::egui;
 
