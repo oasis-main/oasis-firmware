@@ -1,7 +1,7 @@
 [project]
 name = "oasis-simulation"
-version = "0.1.0"
-description = "Behavioral simulation runtime for Oasis firmware with MCP interface"
+version = "0.2.0"
+description = "Unified simulation framework for Oasis firmware with MCU emulation and MCP interface"
 authors = [{ name = "Oasis Team" }]
 readme = "README.md"
 requires-python = ">=3.11"
@@ -17,9 +17,19 @@ dev = [
 fmi = [
     "fmpy>=0.3",
 ]
+pdf = [
+    "pymupdf>=1.23",
+    "pdfplumber>=0.10",
+]
+all = [
+    "pymupdf>=1.23",
+    "pdfplumber>=0.10",
+    "fmpy>=0.3",
+]
 
 [project.scripts]
 oasis-sim = "mcp_server:run_stdio_server"
+oasis-datasheet = "datasheet_ingestion.cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -27,4 +37,4 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["behavioral*", "components*"]
+include = ["behavioral*", "emulators*", "datasheet_ingestion*", "components*"]

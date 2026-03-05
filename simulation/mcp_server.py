@@ -176,6 +176,37 @@ class OasisSimulationMCP:
                         "required": ["session_id", "instance_id", "component_id"],
                     },
                 },
+                # Datasheet ingestion tools
+                {
+                    "name": "datasheet_parse",
+                    "description": "Parse a PDF datasheet and extract component specifications",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "pdf_path": {"type": "string", "description": "Path to PDF datasheet"},
+                        },
+                        "required": ["pdf_path"],
+                    },
+                },
+                {
+                    "name": "datasheet_generate",
+                    "description": "Generate component YAML from a parsed datasheet",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "pdf_path": {"type": "string", "description": "Path to PDF datasheet"},
+                            "output_path": {"type": "string", "description": "Output YAML path (optional)"},
+                            "category": {"type": "string", "description": "Component category (sensors, actuators)"},
+                        },
+                        "required": ["pdf_path"],
+                    },
+                },
+                # Emulator tools
+                {
+                    "name": "emulator_platforms",
+                    "description": "List supported MCU platforms for emulation",
+                    "inputSchema": {"type": "object", "properties": {}},
+                },
             ]
         }
     
@@ -193,6 +224,9 @@ class OasisSimulationMCP:
             "component_list": self._tool_component_list,
             "component_describe": self._tool_component_describe,
             "component_add": self._tool_component_add,
+            "datasheet_parse": self._tool_datasheet_parse,
+            "datasheet_generate": self._tool_datasheet_generate,
+            "emulator_platforms": self._tool_emulator_platforms,
         }
         
         if tool_name not in handlers:
@@ -304,6 +338,121 @@ class OasisSimulationMCP:
             "status": "added",
             "instance_id": args["instance_id"],
             "component_id": args["component_id"],
+        }
+    
+    def _tool_datasheet_parse(self, args: dict) -> dict:
+        """Parse a PDF datasheet and extract specifications."""
+        try:
+            from datasheet_ingestion import DatasheetParser
+            
+            parser = DatasheetParser()
+            result = parser.parse_pdf(args["pdf_path"])
+            
+            return {
+                "component_name": result.component_name,
+                "manufacturer": result.manufacturer,
+                "part_number": result.part_number,
+                "component_type": result.component_type,
+                "category": result.category,
+                "interfaces": result.interfaces,
+                "i2c_address": f"0x{result.i2c_address:02X}" if result.i2c_address else None,
+                "supply_voltage": {
+                    "min": result.supply_voltage_min,
+                    "max": result.supply_voltage_max,
+                },
+                "accuracy": result.accuracy,
+                "resolution": result.resolution,
+                "confidence": result.extraction_confidence,
+            }
+        except ImportError:
+            return {"error": "Datasheet ingestion requires: pip install oasis-simulation[pdf]"}
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def _tool_datasheet_generate(self, args: dict) -> dict:
+        """Generate component YAML from a datasheet."""
+        try:
+            from datasheet_ingestion import DatasheetParser, generate_component_yaml
+            
+            parser = DatasheetParser()
+            extracted = parser.parse_pdf(args["pdf_path"])
+            
+            output_path = args.get("output_path")
+            yaml_content = generate_component_yaml(extracted, output_path)
+            
+            return {
+                "status": "generated",
+                "component_id": extracted.component_name.lower().replace(" ", "_"),
+                "confidence": extracted.extraction_confidence,
+                "yaml": yaml_content if not output_path else None,
+                "output_path": output_path,
+            }
+        except ImportError:
+            return {"error": "Datasheet ingestion requires: pip install oasis-simulation[pdf]"}
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def _tool_emulator_platforms(self, args: dict) -> dict:
+        """List supported MCU platforms."""
+        return {
+            "platforms": [
+                {
+                    "id": "arduino_uno",
+                    "name": "Arduino Uno",
+                    "mcu": "ATmega328P",
+                    "emulator": "simavr",
+                    "status": "supported",
+                },
+                {
+                    "id": "arduino_mega",
+                    "name": "Arduino Mega",
+                    "mcu": "ATmega2560",
+                    "emulator": "simavr",
+                    "status": "supported",
+                },
+                {
+                    "id": "stm32f103",
+                    "name": "STM32F103 (Blue Pill)",
+                    "mcu": "STM32F103C8T6",
+                    "emulator": "renode",
+                    "status": "supported",
+                },
+                {
+                    "id": "stm32f401",
+                    "name": "STM32F401 (Nucleo)",
+                    "mcu": "STM32F401RE",
+                    "emulator": "renode",
+                    "status": "supported",
+                },
+                {
+                    "id": "stm32f407",
+                    "name": "STM32F407 (Discovery)",
+                    "mcu": "STM32F407VG",
+                    "emulator": "renode",
+                    "status": "supported",
+                },
+                {
+                    "id": "esp32",
+                    "name": "ESP32 DevKit",
+                    "mcu": "ESP32",
+                    "emulator": "qemu/wokwi",
+                    "status": "supported",
+                },
+                {
+                    "id": "esp32s3",
+                    "name": "ESP32-S3",
+                    "mcu": "ESP32-S3",
+                    "emulator": "qemu/wokwi",
+                    "status": "supported",
+                },
+                {
+                    "id": "esp32c3",
+                    "name": "ESP32-C3 (RISC-V)",
+                    "mcu": "ESP32-C3",
+                    "emulator": "qemu",
+                    "status": "supported",
+                },
+            ]
         }
 
 
