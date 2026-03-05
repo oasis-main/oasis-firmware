@@ -1,0 +1,53 @@
+[package]
+name = "oasis-studio"
+version = "0.1.0"
+edition = "2021"
+description = "Desktop application for Oasis firmware development, simulation, and deployment"
+authors = ["Oasis Team"]
+
+[dependencies]
+# GUI
+eframe = "0.27"
+egui = "0.27"
+egui_extras = { version = "0.27", features = ["image"] }
+
+# Async runtime
+tokio = { version = "1.36", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# File dialogs (disabled temporarily - use native-dialog when needed)
+# rfd = "0.11"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# MQTT client for live monitoring
+rumqttc = "0.23"
+
+# HTTP client (disabled for now to avoid edition2024 issue)
+# reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# Time
+chrono = "0.4"
+
+# Open URLs
+open = "5.0"
+
+# Local dependency
+oasis-core = { path = ".." }
+
+[features]
+default = []
+
+[profile.release]
+opt-level = 3
+lto = true
