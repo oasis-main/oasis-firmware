@@ -1,53 +1,97 @@
-## Overview
+# Oasis Firmware
 
-oasis-rpi, developed by Oasis-X, is an open-source toolkit for IoT applications. It is a configurable nervous system that provides sensing, data collection, environmental control, equipment automation, and remote monitoring functionality. This codebase is maintained with the goal to offer these capabilities to everyone. Users are encouraged to contribute data, projects, and technical expertise. See [Contributing](#contributing) for details. Note: this software is currently under active development.
-All functions can be deployed with a RaspberryPi (scheduling, PID control, data & networking management) + an Arduino (real-time analog & digital sensors).
+**Configuration-driven firmware generation for IoT devices with KiCAD integration.**
 
+Oasis Firmware is a unified hardware management framework that supports:
+- **Multi-platform**: ESP32, Raspberry Pi, Arduino, STM32
+- **Declarative config**: Define devices in YAML, generate firmware code
+- **Simulation**: Wokwi simulation configs for ESP32
+- **KiCAD integration**: Import PCB designs, export scaffolds, junction advisor
+- **Legacy support**: Preserved Python RPi toolkit and Arduino sensor templates
 
-This toolkit can be deployed using a RaspberryPi (for scheduling, PID control, data & networking management) + an Arduino (for real-time analog & digital sensors). 
-
-
-The active system is controllable via web interface at https://dashboard.oasis-x.io, where we offer additional cloud tools.
-Alternatively, all oasis-rpi instances can be managed asynchronously through the importable python API.
-
-The repository includes:
-1. Python setup scripts 
-2. Configuration files 
-3. Arduino/microcontroller "minion" files 
-4. Shell setup scripts 
-
-## Quick-Start Guide for Raspberry Pi
-
+## Architecture
 
 ```
-sudo raspi-config
+oasis-firmware/
+├── src/                    # Rust firmware generator (oasis-build CLI)
+├── examples/               # device.yaml examples (greenhouse, drone)
+├── docs/                   # Schema docs, deployment guide, desktop app design
+├── kicad_bridge/           # Python KiCAD integration tools
+└── legacy/
+    ├── rpi/                # Original Python RPi toolkit (oasis-grow)
+    └── ino/                # Arduino sensor templates (oasis-ino)
 ```
-- setup your internet: System Options -> Wireless LAN -> follow prompt
-- setup your camera: Interface Options -> Legacy Camera  -> Yes
-- (optional, recommended) security: System Options -> Password  -> follow prompt
-- (optional) remote access: Interface Options -> SSH  -> Yes
-- (optional) remote acess: Interface Options -> Remote GPIO  -> Enable
-- (opional) on-device peripherals: Interface Options -> I2C  -> Yes  
-- (opional) on-device peripherals: Interface Options -> SPI  -> Yes  
 
+## Quick Start
+
+### New Projects (Recommended)
+
+1. Define your device in YAML (see `examples/`):
+```yaml
+device:
+  id: my-greenhouse
+  board: { platform: mcu, model: esp32_devkit }
+sensors:
+  - name: temp_humidity
+    type: dht22
+    pins: { data: 4 }
 ```
-sudo apt-get update -y
-sudo apt-get install git -y
-git clone https://github.com/oasis-main/oasis-rpi.git 
-cd oasis-rpi
+
+2. Validate and generate firmware:
+```bash
+cargo run --bin oasis-build -- validate --config device.yaml
+cargo run --bin oasis-build -- generate --config device.yaml --output ./build/
+```
+
+3. Flash to device (see `docs/DEPLOYMENT.md`)
+
+### KiCAD Integration
+
+```bash
+cd kicad_bridge && pip install -e .
+
+# Import existing PCB to device.yaml
+oasis-kicad import ./my-project.kicad_pro --output device.yaml
+
+# Generate KiCAD scaffold from device.yaml
+oasis-kicad scaffold --config device.yaml --output ./kicad/
+
+# Get connector/cable/enclosure recommendations
+oasis-kicad review --config device.yaml
+```
+
+### Legacy RPi Toolkit
+
+The original Python-based RPi toolkit is preserved in `legacy/rpi/`:
+
+```bash
+cd legacy/rpi
 . install.sh
-```
-
-To validate everything went smoothly, start the virtual env and test the main process with:
-
-```
-cd oasis-rpi
 . start.sh
 ```
 
-If successful, the above should run a ~15-30 second setup flow that ends with a statement indicating the "core process is deactivated."
+See `legacy/rpi/README.md` for full documentation.
 
-## Complete Firmware Guide
+## Documentation
+
+- [Device Schema](docs/DEVICE_SCHEMA.md) - YAML configuration reference
+- [Deployment Guide](docs/DEPLOYMENT.md) - Flashing and deployment techniques
+- [Desktop App Design](docs/DESKTOP_APP_DESIGN.md) - Planned egui desktop application
+
+## Supported Platforms
+
+| Platform | Generator | Simulation | Deployment |
+|----------|-----------|------------|------------|
+| ESP32    | Rust (embassy) | Wokwi | espflash, OTA |
+| RPi      | Rust (tokio) | mock_gpio | SSH, systemd |
+| Arduino  | C++ templates | - | arduino-cli |
+| STM32    | Rust (embassy) | - | probe-rs |
+
+## Contributing
+
+We encourage users to contribute data, projects, and technical expertise. Open-source contributors are welcome!
+
+## Legacy Documentation
 
   - [Introduction](#introduction)
   - [Raspberry Pi Setup](#raspberry-pi-setup)

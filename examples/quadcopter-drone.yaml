@@ -1,0 +1,296 @@
+# Oasis Drone - Quadcopter with RPi Flight Controller + Arduino Motor Controller
+# 
+# Architecture:
+#   RPi 4 (main brain): GPS, primary IMU, sensor fusion, navigation, telemetry
+#   Arduino Nano (real-time): Secondary IMU, ESC control, fast loop (1kHz)
+#   Communication: Serial UART between RPi <-> Arduino
+
+device:
+  id: quad-drone-01
+  name: "Oasis Quadcopter Drone"
+  version: "0.1.0"
+  description: "4-motor drone with dual IMU, GPS, RPi flight controller"
+  board:
+    platform: rpi
+    model: rpi_4b
+    
+# The Arduino is specified as a connected MCU (serial bridge)
+connectivity:
+  mode: direct_mqtt
+  wifi:
+    ssid: "${WIFI_SSID}"
+    password: "${WIFI_PASSWORD}"
+  mqtt:
+    broker: "mqtt.oasis-x.io"
+    port: 8883
+    use_tls: true
+  serial:
+    # Connection to Arduino motor controller
+    port: "/dev/ttyUSB0"
+    baud_rate: 500000  # High speed for real-time control
+
+auth:
+  method: api_key
+  api_key: "${OASIS_DEVICE_API_KEY}"
+  device_cert: "${OASIS_DEVICE_CERT_PATH}"
+
+# Sensors on RPi
+sensors:
+  # Primary IMU on RPi (I2C) - for sensor fusion
+  - name: imu_primary
+    type: mpu9250
+    pins:
+      sda: 2  # GPIO2 (I2C1 SDA)
+      scl: 3  # GPIO3 (I2C1 SCL)
+    sampling:
+      interval_ms: 10  # 100Hz
+    output:
+      measurements:
+        - name: accel_x
+          unit: "m/s²"
+        - name: accel_y
+          unit: "m/s²"
+        - name: accel_z
+          unit: "m/s²"
+        - name: gyro_x
+          unit: "rad/s"
+        - name: gyro_y
+          unit: "rad/s"
+        - name: gyro_z
+          unit: "rad/s"
+        - name: mag_x
+          unit: "µT"
+        - name: mag_y
+          unit: "µT"
+        - name: mag_z
+          unit: "µT"
+    calibration:
+      offset: 0.0
+      scale: 1.0
+
+  # GPS module (UART)
+  - name: gps
+    type: bno055
+    pins:
+      sda: 2
+      scl: 3
+    sampling:
+      interval_ms: 100  # 10Hz
+    output:
+      measurements:
+        - name: latitude
+          unit: "deg"
+        - name: longitude
+          unit: "deg"
+        - name: altitude
+          unit: "m"
+        - name: speed
+          unit: "m/s"
+        - name: heading
+          unit: "deg"
+        - name: satellites
+          unit: "count"
+        - name: hdop
+          unit: ""
+
+  # Barometric pressure/altitude
+  - name: barometer
+    type: bme280
+    pins:
+      sda: 2
+      scl: 3
+    i2c_address: 0x76
+    sampling:
+      interval_ms: 20  # 50Hz
+    output:
+      measurements:
+        - name: pressure
+          unit: "hPa"
+        - name: altitude_baro
+          unit: "m"
+        - name: temperature
+          unit: "°C"
+
+  # Battery voltage monitor
+  - name: battery
+    type: adc_raw
+    pins:
+      adc: 0  # MCP3008 channel 0 via SPI
+    sampling:
+      interval_ms: 1000  # 1Hz
+    calibration:
+      scale: 5.7
+      offset: 0.0
+    output:
+      measurements:
+        - name: voltage
+          unit: "V"
+
+  # Secondary IMU
+  - name: imu_secondary
+    type: mpu6050
+    pins:
+      sda: 2
+      scl: 3
+    sampling:
+      interval_ms: 1  # 1kHz
+    output:
+      measurements:
+        - name: accel_x
+          unit: "m/s²"
+        - name: accel_y
+          unit: "m/s²"
+        - name: accel_z
+          unit: "m/s²"
+        - name: gyro_x
+          unit: "rad/s"
+        - name: gyro_y
+          unit: "rad/s"
+        - name: gyro_z
+          unit: "rad/s"
+
+# Actuators (ESCs for motors)
+actuators:
+  - name: motor_fl
+    type: pwm
+    pins:
+      pwm: 12  # GPIO12 PWM0
+
+  - name: motor_fr
+    type: pwm
+    pins:
+      pwm: 13  # GPIO13 PWM1
+
+  - name: motor_bl
+    type: pwm
+    pins:
+      pwm: 18  # GPIO18 PWM0
+
+  - name: motor_br
+    type: pwm
+    pins:
+      pwm: 19  # GPIO19 PWM1
+
+  - name: status_led
+    type: led
+    pins:
+      output: 17
+
+# Control loops
+control_loops:
+  # Attitude stabilization (roll, pitch, yaw)
+  - name: attitude_control
+    type: pid
+    description: "Roll/Pitch/Yaw stabilization"
+    enabled: true
+    input:
+      sensor: imu_secondary  # Use fast Arduino IMU
+      measurement: gyro_x    # Roll rate
+    output:
+      actuator: motor_fl     # Actually outputs to all motors via mixer
+    pid:
+      kp: 0.5
+      ki: 0.1
+      kd: 0.05
+      setpoint: 0.0  # Target: zero angular velocity
+      output_min: -500
+      output_max: 500
+      sample_time_ms: 1
+
+  # Altitude hold
+  - name: altitude_hold
+    type: pid
+    enabled: true
+    input:
+      sensor: barometer
+      measurement: altitude_baro
+    output:
+      actuator: motor_fl
+    pid:
+      kp: 2.0
+      ki: 0.5
+      kd: 1.0
+      setpoint: 10.0  # Target: 10m altitude
+      output_min: -200
+      output_max: 200
+      sample_time_ms: 20
+
+  # GPS position hold
+  - name: position_hold
+    type: pid
+    enabled: false
+    input:
+      sensor: gps
+      measurement: latitude
+    output:
+      actuator: motor_fl
+    pid:
+      kp: 1.0
+      ki: 0.2
+      kd: 0.5
+      setpoint: 0.0
+      output_min: -15
+      output_max: 15
+      sample_time_ms: 100
+
+# Data publishing
+data_publishing:
+  mqtt:
+    enabled: true
+    topic_prefix: "oasis/drones/${device.id}"
+    qos: 1
+    publish_interval_ms: 100
+
+# System configuration
+system:
+  log_level: info
+  watchdog:
+    enabled: true
+    timeout_ms: 500
+  power:
+    sleep_mode: none
+  ota:
+    enabled: true
+    check_interval_s: 3600
+    update_topic: "oasis/drones/${device.id}/ota"
+
+# Hardware/PCB configuration
+hardware:
+  kicad_project: "./pcb/quad-drone-fc.kicad_pro"
+  symbols:
+    - component: imu_primary
+      symbol_ref: "U1"
+    - component: barometer
+      symbol_ref: "U2"
+    - component: gps
+      symbol_ref: "U3"
+    - component: battery
+      symbol_ref: "R1"  # Voltage divider
+  connectors:
+    - name: "J1"
+      connector_type: "jst_sh_8"
+      signals: [VCC, GND, SDA, SCL, TX, RX, NC, NC]
+    - name: "J2"
+      connector_type: "xt60"
+      signals: [BATT+, BATT-]
+    - name: "J3"
+      connector_type: "jst_gh_6"
+      signals: [ESC1, ESC2, ESC3, ESC4, VCC, GND]
+  housing:
+    model: "custom_drone_frame"
+    cad_file: "./frame/quad-frame-250mm.FCStd"
+    dimensions_mm: [250, 250, 80]
+
+# Deployment
+deployment:
+  flash_method: ssh_rsync
+  ssh:
+    host: "quad-drone-01.local"
+    port: 22
+    user: "pi"
+    key_path: "~/.ssh/oasis_drone"
+    install_dir: "/opt/oasis/flight-controller"
+  ota:
+    endpoint: "oasis/drones/${device.id}/ota"
+    signing_key: "./keys/drone_firmware.pem"
+    require_signature: true

@@ -1,0 +1,199 @@
+# Example: Greenhouse Environmental Monitor
+# Platform: ESP32 with direct MQTT to oasis-cloud
+
+device:
+  id: greenhouse-node-01
+  name: Greenhouse Environmental Monitor
+  board:
+    platform: mcu
+    model: esp32_devkit
+
+connectivity:
+  mode: direct_mqtt
+  wifi:
+    ssid: "${WIFI_SSID}"
+    password: "${WIFI_PASSWORD}"
+  mqtt:
+    broker: mqtt.dev.cloud.oasis-x.io
+    port: 8883
+    use_tls: true
+
+auth:
+  api_key: "${OASIS_API_KEY}"
+  source_id: 42
+  admin_id: admin-greenhouse-ops
+
+sensors:
+  - name: air_temp_humidity
+    type: dht22
+    pins:
+      data: 4
+    sampling:
+      interval_ms: 5000
+      averaging: 3
+    output:
+      measurements:
+        - name: temperature
+          unit: celsius
+          precision: 1
+        - name: humidity
+          unit: percent
+          precision: 1
+    thresholds:
+      - measurement: temperature
+        min: 10.0
+        max: 35.0
+        on_breach: alert
+
+  - name: soil_moisture
+    type: capacitive_moisture
+    pins:
+      adc: 0
+    sampling:
+      interval_ms: 10000
+    output:
+      measurements:
+        - name: moisture
+          unit: percent
+          precision: 0
+    calibration:
+      offset: 0
+      scale: 100.0
+
+  - name: light_level
+    type: bh1750
+    pins:
+      sda: 21
+      scl: 22
+    i2c_address: 0x23
+    sampling:
+      interval_ms: 5000
+    output:
+      measurements:
+        - name: lux
+          unit: lux
+          precision: 0
+
+actuators:
+  - name: grow_light
+    type: relay
+    pins:
+      output: 16
+    default:
+      state: off
+    safety:
+      max_on_duration_ms: 43200000  # 12 hours max
+
+  - name: exhaust_fan
+    type: pwm
+    pins:
+      pwm: 17
+    default:
+      value: 0
+    constraints:
+      min_value: 0
+      max_value: 255
+      ramp_rate: 50
+
+  - name: irrigation_valve
+    type: relay
+    pins:
+      output: 18
+    default:
+      state: off
+    safety:
+      watchdog_timeout_ms: 300000  # 5 min max if no heartbeat
+      max_on_duration_ms: 600000   # 10 min max continuous
+
+control_loops:
+  - name: temp_regulation
+    type: threshold
+    input:
+      sensor: air_temp_humidity
+      measurement: temperature
+    output:
+      actuator: exhaust_fan
+    threshold:
+      setpoint: 28.0
+      hysteresis: 2.0
+      direction: cool
+
+  - name: grow_light_schedule
+    type: schedule
+    input:
+      sensor: light_level
+      measurement: lux
+    output:
+      actuator: grow_light
+    schedule:
+      - start_time: "06:00"
+        end_time: "20:00"
+        value: true
+        days: null  # every day
+
+data_publishing:
+  mqtt:
+    enabled: true
+    telemetry_topic: "oasis/devices/${device.id}/telemetry"
+    state_topic: "oasis/devices/${device.id}/state"
+    cmd_topic: "oasis/devices/${device.id}/cmd"
+    publish_interval_ms: 5000
+    qos: 1
+  https:
+    enabled: true
+    batch_interval_s: 60
+    max_batch_size: 100
+    retry_count: 3
+  local_storage:
+    enabled: true
+    max_records: 1000
+    persist_on_reboot: true
+
+system:
+  log_level: info
+  watchdog:
+    enabled: true
+    timeout_ms: 30000
+  power:
+    sleep_mode: none
+  ota:
+    enabled: true
+    check_interval_s: 3600
+    update_topic: "oasis/devices/${device.id}/ota"
+
+# Hardware/PCB configuration (KiCAD integration)
+hardware:
+  kicad_project: "./pcb/greenhouse-monitor.kicad_pro"
+  symbols:
+    - component: air_temp_humidity
+      symbol_ref: "U1"
+    - component: soil_moisture
+      symbol_ref: "U2"
+    - component: light_level
+      symbol_ref: "U3"
+    - component: grow_light
+      symbol_ref: "K1"
+    - component: exhaust_fan
+      symbol_ref: "Q1"
+    - component: irrigation_valve
+      symbol_ref: "K2"
+  connectors:
+    - name: "J1"
+      connector_type: "screw_terminal_4p"
+      signals: [VCC, GND, SOIL_ADC, NC]
+    - name: "J2"
+      connector_type: "jst_xh_4"
+      signals: [VCC, GND, SDA, SCL]
+  housing:
+    model: "ip65_abs_100x68x50"
+    cad_file: "./enclosure/greenhouse-monitor.FCStd"
+    ip_rating: "IP65"
+    dimensions_mm: [100, 68, 50]
+
+# Deployment configuration
+deployment:
+  flash_method: usb_serial
+  target_address: "/dev/ttyUSB0"
+  ota:
+    endpoint: "oasis/devices/${device.id}/ota"
+    require_signature: false

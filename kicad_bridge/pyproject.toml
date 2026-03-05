@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oasis-kicad"
+version = "0.1.0"
+description = "Two-way KiCAD integration for Oasis firmware development"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Oasis Team"}
+]
+dependencies = [
+    "pyyaml>=6.0",
+    "click>=8.1",
+    "rich>=13.0",
+    "sexpdata>=1.0",  # S-expression parser for KiCAD files
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+]
+
+[project.scripts]
+oasis-kicad = "oasis_kicad.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

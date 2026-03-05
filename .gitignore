@@ -4,23 +4,38 @@
 /rusty_locks/target
 /rusty_pins/target
 /rusty_pipes/target
+/target/
+Cargo.lock
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
-.pytest_cache/
+.pycache/
 *.py[cod]
+*$py.class
+*.pyc
+
+# Python
+*.egg-info/
+*.egg
+dist/
+build/
+.venv/
+venv/
+oasis_venv_pi/
 
 # C extensions
 *.so
 
+# C++
+*.d
+*.o
+*.elf
+
 # Distribution / packaging
 .Python
-.venv/
 env/
 bin/
-build/
 develop-eggs/
-dist/
 eggs/
 lib/
 lib64/
@@ -29,10 +44,6 @@ sdist/
 var/
 include/
 man/
-venv/
-*.egg-info/
-.installed.cfg
-*.egg
 
 # Installer logs
 pip-log.txt
