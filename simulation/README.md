@@ -1,23 +1,80 @@
 # Oasis Simulation
 
-Behavioral simulation runtime for Oasis firmware with MCP (Model Context Protocol) interface.
+Unified simulation framework for Oasis firmware with MCU emulation and MCP interface.
 
 ## Features
 
 - **Component Library**: YAML-defined behavioral models for sensors and actuators
 - **Behavioral Runtime**: Python runtime that executes component models
+- **MCU Emulators**: Arduino (simavr), STM32 (Renode), ESP32 (QEMU/Wokwi)
+- **Datasheet Ingestion**: PDF → component YAML generation
 - **MCP Server**: AI-accessible API for simulation control
 - **Fault Injection**: Test edge cases with disconnect, stuck, offset, and noise faults
 
 ## Quick Start
 
 ```bash
-# Install
+# Install (basic)
 cd simulation
 pip install -e .
 
+# Install with PDF parsing
+pip install -e .[pdf]
+
+# Install all features
+pip install -e .[all]
+
 # Run MCP server (stdio mode)
 oasis-sim
+
+# Parse a datasheet
+oasis-datasheet parse sensor.pdf --json
+oasis-datasheet generate sensor.pdf -o components/sensors/new.yaml
+```
+
+## Emulator Prerequisites
+
+### ESP32 (Easiest - Wokwi)
+```bash
+# Wokwi CLI (cloud-based, no local install needed)
+source ~/.nvm/nvm.sh && nvm use 20
+npm install -g wokwi-cli
+```
+
+### ESP32 (Local - QEMU)
+```bash
+# Build Espressif QEMU
+git clone https://github.com/espressif/qemu.git
+cd qemu
+./configure --target-list=xtensa-softmmu
+make -j$(nproc)
+sudo make install
+```
+
+### Arduino (simavr)
+```bash
+# macOS - build from source
+brew install avr-gcc libelf
+git clone https://github.com/buserror/simavr.git
+cd simavr && make && sudo make install
+
+# Ubuntu/Debian
+sudo apt install simavr
+```
+
+### STM32 (Renode)
+```bash
+# macOS - download from releases
+curl -LO https://github.com/renode/renode/releases/download/v1.15.0/renode-1.15.0.macos-x64.dmg
+# Mount and copy to /Applications
+
+# Ubuntu/Debian
+sudo apt install renode
+
+# Or portable version
+wget https://github.com/renode/renode/releases/download/v1.15.0/renode-1.15.0.linux-portable.tar.gz
+tar xzf renode-1.15.0.linux-portable.tar.gz
+export PATH=$PATH:$(pwd)/renode_1.15.0_portable
 ```
 
 ## MCP Tools
