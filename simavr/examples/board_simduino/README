@@ -1,0 +1,68 @@
+
+This will emulate an arduino. Right now it loads the bootloader, then wait on it's "serial port"
+(a pseudo tty) until someone programs it... eventualy it timesout and run the previous
+app that was programmed.
+
+
+Once that bridge is setup, launch simduino:
+
+% ./simduino
+	Starting atmega328 - flashend 7fff ramend 08ff e2end 03ff
+	atmega328 init
+	read_ihex_file: ATmegaBOOT_168_atmega328.ihex, unsupported check type 03
+	Bootloader 7800: 1950
+	uart_pty_init bridge on port *** /dev/pts/11 ***
+	uart_pty_connect: /tmp/simavr-uart0 now points to /dev/pts/11
+	note: export SIMAVR_UART_XTERM=1 and install picocom to get a terminal
+	UART-0 configured to 0010 = 58823 bps (x1), 5 data 1 stop
+	Roughtly 136 usec per bytes
+
+What that is done, you have a few seconds to program it:
+
+% avrdude -p m328p -c arduino -P /tmp/simavr-uart0 -U flash:w:atmega328p_dummy_blinky.hex
+
+	avrdude: AVR device initialized and ready to accept instructions
+	
+	Reading | ################################################## | 100% 0.01s
+	
+	avrdude: Device signature = 0x1e950f
+	avrdude: NOTE: FLASH memory has been specified, an erase cycle will be performed
+	         To disable this feature, specify the -D option.
+	avrdude: erasing chip
+	avrdude: reading input file "atmega328p_dummy_blinky.hex"
+	avrdude: input file atmega328p_dummy_blinky.hex auto detected as Intel Hex
+	avrdude: writing flash (394 bytes):
+	
+	Writing | ################################################## | 100% 0.15s
+	
+	avrdude: 394 bytes of flash written
+	avrdude: verifying flash memory against atmega328p_dummy_blinky.hex:
+	avrdude: load data flash data from input file atmega328p_dummy_blinky.hex:
+	avrdude: input file atmega328p_dummy_blinky.hex auto detected as Intel Hex
+	avrdude: input file atmega328p_dummy_blinky.hex contains 394 bytes
+	avrdude: reading on-chip flash data:
+	
+	Reading | ################################################## | 100% 0.13s
+	
+	avrdude: verifying ...
+	avrdude: 394 bytes of flash verified
+	
+	avrdude: safemode: Fuses OK
+	
+	avrdude done.  Thank you.
+
+simduino will display that:
+
+	Erasing page 0000 (128)
+	Writing page 0000 (128)
+	Erasing page 0001 (128)
+	Writing page 0001 (128)
+	Erasing page 0002 (128)
+	Writing page 0002 (128)
+	Erasing page 0003 (128)
+	Writing page 0003 (128)
+
+And then jump to the program that was programmed. The example doesn't do anything useful, it's
+a placeholder...
+
+Michel Pollet <buserror@gmail.com>

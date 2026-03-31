@@ -96,7 +96,8 @@ fn show_component_palette(ui: &mut egui::Ui, state: &mut AppState) {
         
         ui.radio_value(&mut state.sim_mode, SimulationMode::Behavioral, "Behavioral (fast)");
         ui.radio_value(&mut state.sim_mode, SimulationMode::McuEmulator, "MCU Emulator");
-        ui.radio_value(&mut state.sim_mode, SimulationMode::FullPhysics, "Full Physics");
+        ui.radio_value(&mut state.sim_mode, SimulationMode::LinuxBoard, "Linux Board");
+        ui.radio_value(&mut state.sim_mode, SimulationMode::MultiBoard, "Multi-Board");
     });
     
     ui.add_space(10.0);

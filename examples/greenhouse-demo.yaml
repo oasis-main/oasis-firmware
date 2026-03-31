@@ -1,0 +1,287 @@
+# =============================================================================
+# Greenhouse Controller Demo
+# =============================================================================
+# This device.yaml demonstrates a complete greenhouse automation system
+# with temperature/humidity control, light sensing, and irrigation.
+#
+# Target: ESP32 DevKit (can be simulated with oasis-sim)
+# =============================================================================
+
+device:
+  id: greenhouse-demo-01
+  name: "Oasis Greenhouse Demo"
+  board:
+    platform: mcu
+    model: esp32_devkit
+
+# =============================================================================
+# Connectivity
+# =============================================================================
+connectivity:
+  mode: direct_mqtt
+  wifi:
+    ssid: "${WIFI_SSID}"
+    password: "${WIFI_PASSWORD}"
+  mqtt:
+    broker: "mqtt.oasis-x.io"
+    port: 8883
+    use_tls: true
+
+auth:
+  api_key: "${OASIS_API_KEY}"
+  source_id: 1
+
+# =============================================================================
+# Sensors
+# =============================================================================
+sensors:
+  # Primary temperature/humidity sensor
+  - name: air_sensor
+    type: dht22
+    pins:
+      data: 4
+    sampling:
+      interval_ms: 5000
+      averaging: 3
+    output:
+      measurements:
+        - name: temperature
+          unit: "°C"
+          precision: 1
+        - name: humidity
+          unit: "%RH"
+          precision: 1
+    calibration:
+      offset: -0.5
+      scale: 1.0
+    thresholds:
+      - measurement: temperature
+        min: 10.0
+        max: 40.0
+        on_breach: alert
+
+  # Secondary environmental sensor (backup + pressure)
+  - name: env_sensor
+    type: bme280
+    i2c_address: 0x76
+    sampling:
+      interval_ms: 10000
+      averaging: 1
+    output:
+      measurements:
+        - name: temperature
+          unit: "°C"
+          precision: 2
+        - name: humidity
+          unit: "%RH"
+          precision: 1
+        - name: pressure
+          unit: "hPa"
+          precision: 1
+
+  # Light sensor for grow light control
+  - name: light_sensor
+    type: bh1750
+    i2c_address: 0x23
+    sampling:
+      interval_ms: 2000
+      averaging: 5
+    output:
+      measurements:
+        - name: illuminance
+          unit: "lux"
+          precision: 0
+
+  # Soil moisture sensor
+  - name: soil_moisture
+    type: capacitive_moisture
+    pins:
+      adc: 34
+    sampling:
+      interval_ms: 30000
+      averaging: 5
+    output:
+      measurements:
+        - name: moisture
+          unit: "%"
+          precision: 0
+    thresholds:
+      - measurement: moisture
+        min: 30.0
+        on_breach: trigger_actuator
+        actuator_target: water_pump
+
+  # Water level sensor (ultrasonic)
+  - name: water_level
+    type: hcsr04
+    pins:
+      trigger: 5
+      echo: 18
+    sampling:
+      interval_ms: 60000
+      averaging: 3
+    output:
+      measurements:
+        - name: distance
+          unit: "cm"
+          precision: 1
+    thresholds:
+      - measurement: distance
+        max: 50.0
+        on_breach: alert
+
+# =============================================================================
+# Actuators
+# =============================================================================
+actuators:
+  # Ventilation fan
+  - name: vent_fan
+    type: relay
+    pins:
+      output: 25
+    default:
+      state: off
+    safety:
+      max_on_duration_ms: 3600000  # 1 hour max
+
+  # Grow lights (PWM dimming)
+  - name: grow_light
+    type: pwm
+    pins:
+      pwm: 26
+    default:
+      value: 0
+    constraints:
+      min_value: 0
+      max_value: 255
+      ramp_rate: 10  # Gradual dim/brighten
+
+  # Water pump
+  - name: water_pump
+    type: relay_nc
+    pins:
+      output: 27
+    default:
+      state: off
+    safety:
+      watchdog_timeout_ms: 60000  # Auto-off after 60s
+      max_on_duration_ms: 300000  # 5 min max
+
+  # Misting system servo
+  - name: mist_servo
+    type: servo
+    pins:
+      pwm: 14
+    default:
+      value: 90  # Center position
+    constraints:
+      min_value: 0
+      max_value: 180
+
+  # Status LED
+  - name: status_led
+    type: led
+    pins:
+      output: 2  # Built-in LED
+
+# =============================================================================
+# Control Loops
+# =============================================================================
+control_loops:
+  # Temperature control via ventilation fan
+  - name: temp_control
+    type: pid
+    input:
+      sensor: air_sensor
+      measurement: temperature
+    output:
+      actuator: vent_fan
+    pid:
+      kp: 2.0
+      ki: 0.1
+      kd: 0.5
+      setpoint: 25.0
+      output_min: 0
+      output_max: 100
+      sample_time_ms: 5000
+
+  # Light level control
+  - name: light_control
+    type: threshold
+    input:
+      sensor: light_sensor
+      measurement: illuminance
+    output:
+      actuator: grow_light
+    threshold:
+      setpoint: 10000  # 10000 lux target
+      hysteresis: 2000
+      direction: heat  # Turn on when below threshold
+
+  # Irrigation control
+  - name: irrigation_control
+    type: threshold
+    input:
+      sensor: soil_moisture
+      measurement: moisture
+    output:
+      actuator: water_pump
+    threshold:
+      setpoint: 40.0
+      hysteresis: 10.0
+      direction: heat  # Turn on when moisture < 30%
+
+  # Humidity control via misting
+  - name: humidity_control
+    type: pid
+    input:
+      sensor: air_sensor
+      measurement: humidity
+    output:
+      actuator: mist_servo
+    pid:
+      kp: 1.5
+      ki: 0.05
+      kd: 0.2
+      setpoint: 65.0
+      output_min: 0
+      output_max: 180
+      sample_time_ms: 10000
+
+# =============================================================================
+# Data Publishing
+# =============================================================================
+data_publishing:
+  mqtt:
+    enabled: true
+    telemetry_topic: "oasis/devices/${device.id}/telemetry"
+    state_topic: "oasis/devices/${device.id}/state"
+    cmd_topic: "oasis/devices/${device.id}/cmd"
+    publish_interval_ms: 30000
+    qos: 1
+  local_storage:
+    enabled: true
+    max_records: 1000
+    persist_on_reboot: true
+
+# =============================================================================
+# System Configuration
+# =============================================================================
+system:
+  log_level: info
+  watchdog:
+    enabled: true
+    timeout_ms: 30000
+  power:
+    sleep_mode: none
+  ota:
+    enabled: true
+    check_interval_s: 3600
+    update_topic: "oasis/devices/${device.id}/ota"
+
+# =============================================================================
+# Deployment
+# =============================================================================
+deployment:
+  flash_method: usb_serial
+  target_address: "/dev/ttyUSB0"

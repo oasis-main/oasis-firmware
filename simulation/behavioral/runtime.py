@@ -123,10 +123,17 @@ class BehavioralRuntime:
     
     def step(self, delta_ms: int):
         """Advance simulation by delta_ms milliseconds."""
-        self.sim_time_ms += delta_ms
+        # Step in increments to properly handle startup delays and read intervals
+        step_size = 100  # 100ms increments for accuracy
+        remaining = delta_ms
         
-        for instance in self.components.values():
-            self._step_component(instance, delta_ms)
+        while remaining > 0:
+            increment = min(step_size, remaining)
+            self.sim_time_ms += increment
+            remaining -= increment
+            
+            for instance in self.components.values():
+                self._step_component(instance, increment)
     
     def _step_component(self, instance: ComponentInstance, delta_ms: int):
         """Step a single component."""
@@ -159,11 +166,31 @@ class BehavioralRuntime:
         schema = instance.schema
         behavior = schema.behavior
         
-        # Find corresponding input (convention: input_name maps to output_name)
-        # e.g., temp_actual -> temperature, humidity_actual -> humidity
-        input_name = f"{output_name}_actual"
-        signal_name = f"{instance.instance_id}.{input_name}"
-        input_signal = self.signal_bus.get(signal_name)
+        # Check for stuck fault
+        if instance.state.get("_stuck"):
+            cached = instance.state.get(f"_last_{output_name}")
+            if cached is not None:
+                return cached
+        
+        # Find corresponding input from schema
+        # First try exact match with _actual suffix
+        input_signal = None
+        possible_input_names = [
+            f"{output_name}_actual",  # moisture -> moisture_actual
+            f"{output_name[:4]}_actual" if len(output_name) > 4 else None,  # temperature -> temp_actual
+        ]
+        
+        # Also check schema inputs for matching patterns
+        for inp in schema.inputs:
+            if output_name in inp.name or inp.name.replace("_actual", "") in output_name:
+                possible_input_names.append(inp.name)
+        
+        for input_name in possible_input_names:
+            if input_name:
+                signal_name = f"{instance.instance_id}.{input_name}"
+                input_signal = self.signal_bus.get(signal_name)
+                if input_signal is not None:
+                    break
         
         if input_signal is None:
             # No physical input, generate synthetic value
@@ -171,8 +198,15 @@ class BehavioralRuntime:
         else:
             value = float(input_signal.value)
         
+        # Apply offset fault if present
+        offset = instance.state.get("_offset", 0.0)
+        value += offset
+        
         # Apply noise model
         value = self._apply_noise(value, behavior)
+        
+        # Cache for stuck fault
+        instance.state[f"_last_{output_name}"] = value
         
         return value
     

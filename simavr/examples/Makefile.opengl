@@ -1,0 +1,23 @@
+
+UNAME := ${shell uname}
+
+ifeq (${UNAME}, Darwin)
+LDFLAGS 	+= -framework GLUT -framework OpenGL
+else
+ifeq  (${UNAME}, Linux)
+CPPFLAGS	+= ${shell pkg-config --cflags glu}
+LDFLAGS 	+= ${shell pkg-config --libs glu} -lglut -lGL -lGLU
+else
+ifeq (${shell uname -o}, Msys)
+LDFLAGS 	+= -mwindows -lopengl32 -lfreeglut
+else
+CPPFLAGS	+= ${shell pkg-config --cflags glu}
+LDFLAGS 	+= ${shell pkg-config --libs glu} -lglut -lGL -lGLU
+endif
+endif
+endif
+
+ifeq  (${UNAME}, FreeBSD)
+CPPFLAGS	+= -DNO_ALLOCA=1
+CPPFLAGS	+= -I/usr/local/include
+endif

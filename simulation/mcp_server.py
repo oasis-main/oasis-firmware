@@ -8,6 +8,13 @@ from pathlib import Path
 from typing import Any, Optional
 
 from behavioral import BehavioralRuntime, ComponentSchema
+from emulators import (
+    EmulatorOrchestrator,
+    OrchestratorConfig,
+    Platform,
+    GpioMapping,
+    create_orchestrator_from_device_yaml,
+)
 
 
 @dataclass
@@ -16,6 +23,8 @@ class SimulationSession:
     session_id: str
     runtime: BehavioralRuntime
     device_yaml_path: Optional[str] = None
+    orchestrator: Optional[EmulatorOrchestrator] = None
+    firmware_path: Optional[str] = None
 
 
 class OasisSimulationMCP:
@@ -207,6 +216,100 @@ class OasisSimulationMCP:
                     "description": "List supported MCU platforms for emulation",
                     "inputSchema": {"type": "object", "properties": {}},
                 },
+                {
+                    "name": "emulator_start",
+                    "description": "Start MCU emulation with firmware-in-loop",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {"type": "string"},
+                            "platform": {
+                                "type": "string",
+                                "enum": ["arduino_uno", "arduino_mega", "stm32f103", "stm32f401", "esp32", "esp32s3", "esp32c3"],
+                            },
+                            "firmware_path": {"type": "string", "description": "Path to .elf or .hex firmware"},
+                        },
+                        "required": ["session_id", "platform", "firmware_path"],
+                    },
+                },
+                {
+                    "name": "emulator_stop",
+                    "description": "Stop MCU emulation",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {"type": "string"},
+                        },
+                        "required": ["session_id"],
+                    },
+                },
+                {
+                    "name": "emulator_gpio_set",
+                    "description": "Set a GPIO pin value (simulate external input)",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {"type": "string"},
+                            "port": {"type": "string", "description": "GPIO port (e.g., 'D', 'B', 'GPIOA')"},
+                            "pin": {"type": "integer"},
+                            "value": {"type": "boolean"},
+                        },
+                        "required": ["session_id", "port", "pin", "value"],
+                    },
+                },
+                {
+                    "name": "emulator_gpio_get",
+                    "description": "Get a GPIO pin value",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {"type": "string"},
+                            "port": {"type": "string"},
+                            "pin": {"type": "integer"},
+                        },
+                        "required": ["session_id", "port", "pin"],
+                    },
+                },
+                {
+                    "name": "emulator_uart_send",
+                    "description": "Send data to MCU UART",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {"type": "string"},
+                            "data": {"type": "string"},
+                        },
+                        "required": ["session_id", "data"],
+                    },
+                },
+                {
+                    "name": "emulator_step",
+                    "description": "Step MCU emulation with behavioral models in sync",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {"type": "string"},
+                            "duration_us": {"type": "integer", "default": 1000, "description": "Step duration in microseconds"},
+                        },
+                        "required": ["session_id"],
+                    },
+                },
+                {
+                    "name": "emulator_add_gpio_mapping",
+                    "description": "Map MCU GPIO to behavioral component signal",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {"type": "string"},
+                            "mcu_port": {"type": "string"},
+                            "mcu_pin": {"type": "integer"},
+                            "component_id": {"type": "string"},
+                            "signal_name": {"type": "string"},
+                            "direction": {"type": "string", "enum": ["input", "output"]},
+                        },
+                        "required": ["session_id", "mcu_port", "mcu_pin", "component_id", "signal_name", "direction"],
+                    },
+                },
             ]
         }
     
@@ -227,6 +330,13 @@ class OasisSimulationMCP:
             "datasheet_parse": self._tool_datasheet_parse,
             "datasheet_generate": self._tool_datasheet_generate,
             "emulator_platforms": self._tool_emulator_platforms,
+            "emulator_start": self._tool_emulator_start,
+            "emulator_stop": self._tool_emulator_stop,
+            "emulator_gpio_set": self._tool_emulator_gpio_set,
+            "emulator_gpio_get": self._tool_emulator_gpio_get,
+            "emulator_uart_send": self._tool_emulator_uart_send,
+            "emulator_step": self._tool_emulator_step,
+            "emulator_add_gpio_mapping": self._tool_emulator_add_gpio_mapping,
         }
         
         if tool_name not in handlers:
@@ -452,7 +562,238 @@ class OasisSimulationMCP:
                     "emulator": "qemu",
                     "status": "supported",
                 },
+                # Linux SBCs (full OS emulation via QEMU system)
+                {
+                    "id": "rpi_zero_w",
+                    "name": "Raspberry Pi Zero W",
+                    "mcu": "ARM1176JZF-S",
+                    "emulator": "qemu-system-arm",
+                    "status": "supported",
+                    "os": "linux",
+                    "arch": "arm",
+                },
+                {
+                    "id": "rpi_zero_2w",
+                    "name": "Raspberry Pi Zero 2W",
+                    "mcu": "Cortex-A53",
+                    "emulator": "qemu-system-aarch64",
+                    "status": "supported",
+                    "os": "linux",
+                    "arch": "aarch64",
+                },
+                {
+                    "id": "rpi_3b",
+                    "name": "Raspberry Pi 3B",
+                    "mcu": "Cortex-A53",
+                    "emulator": "qemu-system-aarch64",
+                    "status": "supported",
+                    "os": "linux",
+                    "arch": "aarch64",
+                },
+                {
+                    "id": "rpi_4b",
+                    "name": "Raspberry Pi 4B",
+                    "mcu": "Cortex-A72",
+                    "emulator": "qemu-system-aarch64",
+                    "status": "supported",
+                    "os": "linux",
+                    "arch": "aarch64",
+                },
+                {
+                    "id": "rpi_5",
+                    "name": "Raspberry Pi 5",
+                    "mcu": "Cortex-A76",
+                    "emulator": "qemu-system-aarch64",
+                    "status": "supported",
+                    "os": "linux",
+                    "arch": "aarch64",
+                },
+                {
+                    "id": "beaglebone",
+                    "name": "BeagleBone Black",
+                    "mcu": "Cortex-A8",
+                    "emulator": "qemu-system-arm",
+                    "status": "supported",
+                    "os": "linux",
+                    "arch": "arm",
+                },
+                {
+                    "id": "jetson_nano",
+                    "name": "NVIDIA Jetson Nano",
+                    "mcu": "Cortex-A57",
+                    "emulator": "qemu-system-aarch64",
+                    "status": "supported",
+                    "os": "linux",
+                    "arch": "aarch64",
+                },
+                {
+                    "id": "generic_arm",
+                    "name": "Generic ARM (virt)",
+                    "mcu": "Cortex-A15",
+                    "emulator": "qemu-system-arm",
+                    "status": "supported",
+                    "os": "linux",
+                    "arch": "arm",
+                },
+                {
+                    "id": "generic_arm64",
+                    "name": "Generic ARM64 (virt)",
+                    "mcu": "Cortex-A53",
+                    "emulator": "qemu-system-aarch64",
+                    "status": "supported",
+                    "os": "linux",
+                    "arch": "aarch64",
+                },
             ]
+        }
+    
+    def _tool_emulator_start(self, args: dict) -> dict:
+        """Start MCU emulation with firmware-in-loop."""
+        session = self._get_session(args["session_id"])
+        platform_str = args["platform"]
+        firmware_path = args["firmware_path"]
+        
+        # Map string to Platform enum
+        platform_map = {
+            "arduino_uno": Platform.ARDUINO_UNO,
+            "arduino_mega": Platform.ARDUINO_MEGA,
+            "stm32f103": Platform.STM32F103,
+            "stm32f401": Platform.STM32F401,
+            "stm32f407": Platform.STM32F407,
+            "esp32": Platform.ESP32,
+            "esp32s3": Platform.ESP32_S3,
+            "esp32c3": Platform.ESP32_C3,
+        }
+        
+        if platform_str not in platform_map:
+            return {"error": f"Unknown platform: {platform_str}"}
+        
+        platform = platform_map[platform_str]
+        
+        # Create orchestrator config
+        config = OrchestratorConfig(
+            platform=platform,
+            firmware_path=firmware_path,
+        )
+        
+        try:
+            orchestrator = EmulatorOrchestrator(config)
+            orchestrator.set_behavioral_runtime(session.runtime)
+            
+            if orchestrator.start():
+                session.orchestrator = orchestrator
+                session.firmware_path = firmware_path
+                return {
+                    "status": "started",
+                    "platform": platform_str,
+                    "firmware": firmware_path,
+                }
+            else:
+                return {"error": "Failed to start emulator"}
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def _tool_emulator_stop(self, args: dict) -> dict:
+        """Stop MCU emulation."""
+        session = self._get_session(args["session_id"])
+        
+        if session.orchestrator:
+            session.orchestrator.stop()
+            session.orchestrator = None
+            return {"status": "stopped"}
+        else:
+            return {"error": "No emulator running"}
+    
+    def _tool_emulator_gpio_set(self, args: dict) -> dict:
+        """Set a GPIO pin value."""
+        session = self._get_session(args["session_id"])
+        
+        if not session.orchestrator:
+            return {"error": "No emulator running"}
+        
+        session.orchestrator.set_gpio(
+            args["port"],
+            args["pin"],
+            args["value"]
+        )
+        return {
+            "status": "set",
+            "port": args["port"],
+            "pin": args["pin"],
+            "value": args["value"],
+        }
+    
+    def _tool_emulator_gpio_get(self, args: dict) -> dict:
+        """Get a GPIO pin value."""
+        session = self._get_session(args["session_id"])
+        
+        if not session.orchestrator:
+            return {"error": "No emulator running"}
+        
+        value = session.orchestrator.get_gpio(args["port"], args["pin"])
+        return {
+            "port": args["port"],
+            "pin": args["pin"],
+            "value": value,
+        }
+    
+    def _tool_emulator_uart_send(self, args: dict) -> dict:
+        """Send data to MCU UART."""
+        session = self._get_session(args["session_id"])
+        
+        if not session.orchestrator:
+            return {"error": "No emulator running"}
+        
+        session.orchestrator.send_uart(args["data"])
+        return {"status": "sent", "data": args["data"]}
+    
+    def _tool_emulator_step(self, args: dict) -> dict:
+        """Step MCU emulation with behavioral models in sync."""
+        session = self._get_session(args["session_id"])
+        
+        if not session.orchestrator:
+            # Fall back to behavioral-only stepping
+            duration_ms = args.get("duration_us", 1000) // 1000
+            session.runtime.step(max(1, duration_ms))
+            return {
+                "mode": "behavioral_only",
+                "sim_time_ms": session.runtime.sim_time_ms,
+            }
+        
+        duration_us = args.get("duration_us", 1000)
+        state = session.orchestrator.step(duration_us)
+        
+        return {
+            "mode": "firmware_in_loop",
+            "sim_time_us": state["sim_time_us"],
+            "sim_time_ms": state["sim_time_ms"],
+            "emulator": state.get("emulator"),
+        }
+    
+    def _tool_emulator_add_gpio_mapping(self, args: dict) -> dict:
+        """Map MCU GPIO to behavioral component signal."""
+        session = self._get_session(args["session_id"])
+        
+        if not session.orchestrator:
+            return {"error": "No emulator running"}
+        
+        mapping = GpioMapping(
+            mcu_port=args["mcu_port"],
+            mcu_pin=args["mcu_pin"],
+            component_id=args["component_id"],
+            signal_name=args["signal_name"],
+            direction=args["direction"],
+        )
+        
+        session.orchestrator.config.gpio_mappings.append(mapping)
+        
+        return {
+            "status": "added",
+            "mapping": {
+                "mcu": f"{args['mcu_port']}{args['mcu_pin']}",
+                "component": f"{args['component_id']}.{args['signal_name']}",
+                "direction": args["direction"],
+            }
         }
 
 

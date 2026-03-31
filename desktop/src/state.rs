@@ -4,13 +4,17 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
+use crate::simulation_bridge::{SimulationBridge, LinkType};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Tab {
     Configure,
     Simulate,
+    Orchestrate,  // New: Multi-board topology
     Hardware,
     Deploy,
     Monitor,
+    Tests,        // New: Test runner
 }
 
 impl Default for Tab {
@@ -24,7 +28,16 @@ pub enum SimulationMode {
     #[default]
     Behavioral,
     McuEmulator,
-    FullPhysics,
+    LinuxBoard,   // New: Linux SBC emulation
+    MultiBoard,   // New: Multi-board orchestration
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum OrchestrationView {
+    #[default]
+    Topology,
+    Signals,
+    Comms,
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +74,20 @@ pub struct AppState {
     pub sim_input_override_temp: f64,
     pub sim_input_override_humidity: f64,
     pub sim_input_override_requested: bool,
+    
+    // Orchestration state (multi-board)
+    pub orch_view: OrchestrationView,
+    pub orch_selected_node: Option<String>,
+    pub orch_selected_link: Option<String>,
+    pub orch_link_mode: bool,  // true = drawing a link
+    pub orch_link_start: Option<String>,
+    pub orch_add_link_type: LinkType,
+    pub orch_board_filter: String,  // Filter for board palette
+    
+    // Test runner state
+    pub test_filter: String,
+    pub test_output: String,
+    pub test_auto_run: bool,
 }
 
 #[derive(Debug, Clone, Default)]

@@ -24,6 +24,6 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "Oasis Studio",
         options,
-        Box::new(|cc| Ok(Box::new(app::OasisStudio::new(cc)))),
+        Box::new(|cc| Box::new(app::OasisStudio::new(cc))),
     )
 }

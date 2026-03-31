@@ -3,15 +3,18 @@
 use eframe::egui;
 use crate::state::{AppState, Tab};
 use crate::panels;
+use crate::simulation_bridge::SimulationBridge;
 
 pub struct OasisStudio {
     pub state: AppState,
+    pub simulation_bridge: SimulationBridge,
 }
 
 impl OasisStudio {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         Self {
             state: AppState::default(),
+            simulation_bridge: SimulationBridge::new(),
         }
     }
 }
@@ -60,9 +63,11 @@ impl eframe::App for OasisStudio {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.state.current_tab, Tab::Configure, "⚙ Configure");
                 ui.selectable_value(&mut self.state.current_tab, Tab::Simulate, "▶ Simulate");
+                ui.selectable_value(&mut self.state.current_tab, Tab::Orchestrate, "🔗 Orchestrate");
                 ui.selectable_value(&mut self.state.current_tab, Tab::Hardware, "🔧 Hardware");
                 ui.selectable_value(&mut self.state.current_tab, Tab::Deploy, "📤 Deploy");
                 ui.selectable_value(&mut self.state.current_tab, Tab::Monitor, "📊 Monitor");
+                ui.selectable_value(&mut self.state.current_tab, Tab::Tests, "🧪 Tests");
                 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if let Some(ref path) = self.state.project_path {
@@ -102,9 +107,11 @@ impl eframe::App for OasisStudio {
             match self.state.current_tab {
                 Tab::Configure => panels::configure::show(ui, &mut self.state),
                 Tab::Simulate => panels::simulate::show(ui, &mut self.state),
+                Tab::Orchestrate => panels::orchestrate::show(ui, &mut self.state, &mut self.simulation_bridge),
                 Tab::Hardware => panels::hardware::show(ui, &mut self.state),
                 Tab::Deploy => panels::deploy::show(ui, &mut self.state),
                 Tab::Monitor => panels::monitor::show(ui, &mut self.state),
+                Tab::Tests => panels::tests::show(ui, &mut self.state, &mut self.simulation_bridge),
             }
         });
     }
