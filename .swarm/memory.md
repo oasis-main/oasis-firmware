@@ -5,6 +5,26 @@ Format: `## <ISO8601-date> — <topic> (<agent-id>)`
 
 ---
 
+## 2026-03-31 — oasis-firmware monorepo restructure (windsurf)
+
+Four independent sub-repos dissolved into flat `oasis-main/oasis-firmware` monorepo:
+
+| Former repo | Destination in monorepo |
+|---|---|
+| `oasis-rpi` (= `oasis-main/oasis-firmware` origin) | root `src/`, `simulation/`, `desktop/`, etc. |
+| `oasis-ino` | `legacy/ino/` (merged; added ESP8266, SAMD21, Uno platform dirs) |
+| `oasis-mcu` | `platforms/mcu/` (STM32F103 blink + stm32f1xx-hal) |
+| `oasis-core` | `src/drivers/` (embassy MCU driver templates); rest was duplicate of oasis-rpi |
+| `oasis-cpu` | Deleted — empty dir, stale wrong remote |
+
+Rationale: embedded git repos caused `git add -f` confusion from `oasis-x` root.
+`oasis-x` `.gitignore` intentionally ignores everything except `.swarm/` —
+division repos must be independent, not nested working trees.
+`oasis-firmware` now has its own `.git` at `oasis-main/oasis-firmware.git`.
+`oasis-x` index cleaned; only `.swarm/` tracked there.
+
+---
+
 ## 2026-03-31 — legacy submodule absorption into codegen (windsurf)
 
 `rusty_pins` and `rusty_pipes` were PyO3-bridged Rust crates (now deleted from master).
