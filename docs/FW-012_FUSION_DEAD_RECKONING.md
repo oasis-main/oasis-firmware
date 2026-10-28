@@ -87,6 +87,6 @@ EKF proves too heavy; it already gives most of the value for lap analysis.
 
 ## 8. Next steps
 
-1. Python reference estimator + synthetic-drift test under `simulation/` (runs with stdlib only).
+1. (done) Python reference estimator + synthetic drift test: `simulation/fusion_ref/` (`python3 test_drift.py`, stdlib only; synthetic-validated only).
 2. Replay on real clip when it arrives.
 3. `no_std` port, host tests, once cargo exists.
