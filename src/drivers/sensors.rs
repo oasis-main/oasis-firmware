@@ -702,6 +702,11 @@ pub enum Bno055Mode {
     Ndof = 0x0C,
 }
 
+/// Register addresses and per-LSB scales below were cross-checked on 2026-10-29 against the
+/// Adafruit CircuitPython BNO055 driver (independent source: ACC 0x08 /100, MAG 0x0E /16,
+/// GYR 0x14 /16 deg/s (= 0.0010908 rad/s), EUL 0x1A /16, QUA 0x20 /2^14, LIA 0x28 /100,
+/// GRV 0x2E /100, TEMP 0x34, CALIB_STAT 0x35, offsets 0x55). Bosch datasheet PDF not reachable
+/// from the bot egress, so a direct datasheet check is still open. Not hardware-validated.
 pub mod bno055_reg {
     pub const CHIP_ID: u8 = 0x00;           // reads 0xA0
     pub const PAGE_ID: u8 = 0x07;
