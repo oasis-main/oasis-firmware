@@ -744,6 +744,13 @@ impl Bno055Calibration {
     pub fn is_fully_calibrated(&self) -> bool {
         self.sys == 3 && self.gyro == 3 && self.accel == 3 && self.mag == 3
     }
+    /// Ready for IMUPLUS (accel + gyro fusion, no magnetometer): the mag field is ignored
+    /// because the magnetometer is not used in that mode (and is unreliable near kart motors).
+    /// `sys` is also ignored: its meaning when mag is unused is not stated unambiguously in
+    /// the datasheet, so only the two sensors that feed the fusion are required. Unverified on hardware.
+    pub fn is_ready_imuplus(&self) -> bool {
+        self.gyro == 3 && self.accel == 3
+    }
 }
 
 /// One fused sample. Units are SI/degrees (UNIT_SEL = 0x00 after init).
@@ -901,6 +908,17 @@ mod bno055_tests {
         assert_eq!((c.sys, c.gyro, c.accel, c.mag), (3, 2, 1, 0));
         assert!(!c.is_fully_calibrated());
         assert!(Bno055Calibration::from_byte(0xFF).is_fully_calibrated());
+    }
+
+    #[test]
+    fn imuplus_ready_ignores_mag_and_sys() {
+        // sys 0, gyro 3, accel 3, mag 0 -> ready for IMUPLUS, not fully calibrated
+        let c = Bno055Calibration::from_byte(0b00_11_11_00);
+        assert!(c.is_ready_imuplus());
+        assert!(!c.is_fully_calibrated());
+        // accel or gyro below 3 -> not ready
+        assert!(!Bno055Calibration::from_byte(0b11_11_10_11).is_ready_imuplus());
+        assert!(!Bno055Calibration::from_byte(0b11_10_11_11).is_ready_imuplus());
     }
 
     #[test]
