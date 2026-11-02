@@ -36,6 +36,7 @@ pub fn get_actuator_imports(actuator_type: &ActuatorType) -> &'static str {
 // =============================================================================
 // Relay - Digital on/off control
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const RELAY_DRIVER: &str = r#"
 /// Relay actuator (digital output)
 pub struct Relay<P: OutputPin> {
@@ -72,6 +73,7 @@ impl<P: OutputPin> Relay<P> {
 // =============================================================================
 // LED - Digital or PWM control
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const LED_DRIVER: &str = r#"
 /// LED actuator (digital on/off)
 pub struct Led<P: OutputPin> {
@@ -130,6 +132,7 @@ impl<PWM: PwmPin> PwmLed<PWM> {
 // =============================================================================
 // Buzzer - Digital or PWM tone generation
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const BUZZER_DRIVER: &str = r#"
 /// Buzzer actuator
 pub struct Buzzer<P: OutputPin> {
@@ -171,6 +174,7 @@ impl<P: OutputPin> Buzzer<P> {
 // =============================================================================
 // PWM - Generic PWM output
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const PWM_DRIVER: &str = r#"
 /// Generic PWM output
 pub struct PwmOutput<PWM> {
@@ -214,6 +218,7 @@ impl<PWM: PwmPin> PwmOutput<PWM> {
 // =============================================================================
 // Servo - PWM-controlled servo motor
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const SERVO_DRIVER: &str = r#"
 /// Servo motor (PWM-controlled)
 pub struct Servo<PWM> {
@@ -291,6 +296,7 @@ impl<PWM: PwmPin> Servo<PWM> {
 // =============================================================================
 // DC Motor - PWM + direction control
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const DC_MOTOR_DRIVER: &str = r#"
 /// DC Motor with PWM speed and direction control (L298N, TB6612, etc.)
 pub struct DcMotor<PWM, DIR1: OutputPin, DIR2: OutputPin> {
@@ -364,6 +370,7 @@ impl<PWM: PwmPin, DIR1: OutputPin, DIR2: OutputPin> DcMotor<PWM, DIR1, DIR2> {
 // =============================================================================
 // Stepper Motor - A4988/DRV8825 driver
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const STEPPER_DRIVER: &str = r#"
 /// Stepper motor driver (A4988, DRV8825)
 pub struct StepperMotor<STEP: OutputPin, DIR: OutputPin, EN: OutputPin> {
@@ -463,6 +470,7 @@ impl<STEP: OutputPin, DIR: OutputPin, EN: OutputPin> StepperMotor<STEP, DIR, EN>
 // =============================================================================
 // TMC2209 - UART-controlled stepper driver
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const TMC2209_DRIVER: &str = r#"
 /// TMC2209 stepper driver with UART control
 pub struct Tmc2209<UART, STEP: OutputPin, DIR: OutputPin> {
@@ -514,6 +522,7 @@ impl<UART, STEP: OutputPin, DIR: OutputPin> Tmc2209<UART, STEP, DIR> {
 // =============================================================================
 // PCA9685 - I2C PWM driver (16 channels)
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const PCA9685_DRIVER: &str = r#"
 /// PCA9685 16-channel PWM driver
 pub struct Pca9685<I2C: I2c> {
@@ -597,6 +606,7 @@ impl<I2C: I2c> Pca9685<I2C> {
 }
 "#;
 
+// STATUS: placeholder (no real driver; FW-014)
 const GENERIC_ACTUATOR_DRIVER: &str = r#"
 /// Generic actuator placeholder
 pub struct GenericActuator<P: OutputPin> {

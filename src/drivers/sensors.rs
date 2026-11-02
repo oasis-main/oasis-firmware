@@ -50,6 +50,7 @@ pub fn get_sensor_imports(sensor_type: &SensorType) -> &'static str {
 // =============================================================================
 // DHT22/DHT11 - Single-wire temperature & humidity
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const DHT_DRIVER: &str = r#"
 /// DHT22/DHT11 sensor driver
 pub struct DhtSensor<P: OutputPin + InputPin> {
@@ -140,6 +141,7 @@ pub enum DhtError {
 // =============================================================================
 // BME280 - I2C temperature, humidity, pressure
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const BME280_DRIVER: &str = r#"
 /// BME280 I2C sensor driver
 pub struct Bme280<I2C: I2c> {
@@ -256,6 +258,7 @@ pub struct Bme280Reading {
 // =============================================================================
 // MPU6050 - 6-axis IMU (accelerometer + gyroscope)
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const MPU6050_DRIVER: &str = r#"
 /// MPU6050 6-axis IMU driver
 pub struct Mpu6050<I2C: I2c> {
@@ -336,6 +339,7 @@ pub struct ImuReading {
 // =============================================================================
 // BH1750 - I2C ambient light sensor
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const BH1750_DRIVER: &str = r#"
 /// BH1750 ambient light sensor driver
 pub struct Bh1750<I2C: I2c> {
@@ -368,6 +372,7 @@ impl<I2C: I2c> Bh1750<I2C> {
 // =============================================================================
 // HC-SR04 - Ultrasonic distance sensor
 // =============================================================================
+// STATUS: implemented, unvalidated (echo timing unfinished, busy-wait; FW-007; no hardware-in-loop run)
 const HCSR04_DRIVER: &str = r#"
 /// HC-SR04 ultrasonic distance sensor
 pub struct Hcsr04<TRIG: OutputPin, ECHO: InputPin> {
@@ -421,6 +426,7 @@ pub enum Hcsr04Error {
 // =============================================================================
 // PIR motion sensor (digital)
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const PIR_DRIVER: &str = r#"
 /// PIR motion sensor (digital input)
 pub struct PirSensor<P: InputPin> {
@@ -441,6 +447,7 @@ impl<P: InputPin> PirSensor<P> {
 // =============================================================================
 // INA219 - I2C current/voltage sensor
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const INA219_DRIVER: &str = r#"
 /// INA219 current/voltage/power monitor
 pub struct Ina219<I2C: I2c> {
@@ -494,6 +501,7 @@ pub struct PowerReading {
 // =============================================================================
 // Capacitive/Resistive Moisture Sensor (ADC)
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const MOISTURE_DRIVER: &str = r#"
 /// Soil moisture sensor (analog)
 pub struct MoistureSensor<ADC> {
@@ -519,6 +527,7 @@ impl<ADC> MoistureSensor<ADC> {
 // =============================================================================
 // HX711 - Load cell amplifier
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const HX711_DRIVER: &str = r#"
 /// HX711 24-bit ADC for load cells
 pub struct Hx711<SCK: OutputPin, DOUT: InputPin> {
@@ -592,6 +601,7 @@ pub enum Hx711Error {
 // =============================================================================
 // ESP-CAM camera driver
 // =============================================================================
+// STATUS: implemented, unvalidated (no hardware-in-loop run; FW-015)
 const ESP_CAM_DRIVER: &str = r#"
 /// ESP-CAM camera capture (ESP-IDF specific)
 #[cfg(feature = "esp32")]
@@ -638,18 +648,32 @@ pub mod camera {
 }
 "#;
 
-// Placeholder drivers
+// Placeholder drivers (each const below carries its own STATUS tag; see FW-013)
+// STATUS: placeholder (no real driver; FW-014)
 const BME680_DRIVER: &str = "// BME680 driver: Similar to BME280 with gas sensor";
+// STATUS: placeholder (no real driver; FW-014)
 const SHT31_DRIVER: &str = "// SHT31 driver: I2C temperature/humidity";
+// STATUS: placeholder (no real driver; FW-014)
 const DS18B20_DRIVER: &str = "// DS18B20 driver: 1-Wire temperature";
+// STATUS: placeholder (no real driver; FW-014)
 const TSL2561_DRIVER: &str = "// TSL2561 driver: I2C light sensor";
+// STATUS: placeholder (no real driver; FW-014)
 const VEML7700_DRIVER: &str = "// VEML7700 driver: I2C ambient light";
+// STATUS: placeholder (no real driver; FW-014)
 const PHOTORESISTOR_DRIVER: &str = "// Photoresistor: ADC input";
+// STATUS: placeholder (no real driver; FW-014)
 const VL53LXX_DRIVER: &str = "// VL53L0X/L1X: I2C ToF distance";
+// STATUS: placeholder (no real driver; FW-014)
 const MPU9250_DRIVER: &str = "// MPU9250: 9-axis IMU (MPU6050 + magnetometer)";
+// STATUS: placeholder (no real driver; FW-014)
 const BNO055_DRIVER: &str = "// BNO055: 9-axis IMU with sensor fusion";
+// STATUS: placeholder (no real driver; FW-014)
 const ACS712_DRIVER: &str = "// ACS712: Hall-effect current sensor (ADC)";
+// STATUS: placeholder (no real driver; FW-014)
 const VOLTAGE_DIVIDER_DRIVER: &str = "// Voltage divider: ADC input";
+// STATUS: placeholder (no real driver; FW-014)
 const RPI_CAMERA_DRIVER: &str = "// RPi Camera: libcamera/picamera2";
+// STATUS: placeholder (no real driver; FW-014)
 const ADC_RAW_DRIVER: &str = "// Raw ADC reading";
+// STATUS: placeholder (no real driver; FW-014)
 const GENERIC_SENSOR_DRIVER: &str = "// Generic sensor placeholder";
