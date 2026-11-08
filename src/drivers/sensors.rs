@@ -665,8 +665,292 @@ const PHOTORESISTOR_DRIVER: &str = "// Photoresistor: ADC input";
 const VL53LXX_DRIVER: &str = "// VL53L0X/L1X: I2C ToF distance";
 // STATUS: placeholder (no real driver; FW-014)
 const MPU9250_DRIVER: &str = "// MPU9250: 9-axis IMU (MPU6050 + magnetometer)";
-// STATUS: placeholder (no real driver; FW-014)
-const BNO055_DRIVER: &str = "// BNO055: 9-axis IMU with sensor fusion";
+// =============================================================================
+// BNO055 - 9-axis IMU with on-chip sensor fusion (Bosch)
+// =============================================================================
+// Register map and scaling per Bosch BST-BNO055-DS000 (register map, section 4.3;
+// unit scaling table 3-17..3-22; operating modes table 3-5) and cross-checked
+// against Adafruit_BNO055.h (MIT). Fusion runs on the chip: the host only reads
+// results, so FW-012 can consume quaternion + linear acceleration directly.
+// STATUS: implemented, unvalidated (datasheet-derived, not compiled here, no hardware-in-loop run; FW-015)
+const BNO055_DRIVER: &str = r#"
+/// BNO055 9-axis IMU driver (on-chip fusion, I2C address 0x28 or 0x29)
+pub struct Bno055<I2C: I2c> {
+    i2c: I2C,
+    address: u8,
+    mode: Bno055Mode,
+}
+
+/// Operating modes (OPR_MODE, 0x3D). Fusion modes are IMU..NDOF.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub enum Bno055Mode {
+    Config = 0x00,
+    AccOnly = 0x01,
+    MagOnly = 0x02,
+    GyroOnly = 0x03,
+    AccMag = 0x04,
+    AccGyro = 0x05,
+    MagGyro = 0x06,
+    Amg = 0x07,
+    /// Accel + gyro fusion (no magnetometer): best for a kart/vehicle near motors
+    ImuPlus = 0x08,
+    Compass = 0x09,
+    M4g = 0x0A,
+    NdofFmcOff = 0x0B,
+    /// Full 9-DOF fusion
+    Ndof = 0x0C,
+}
+
+/// Register addresses and per-LSB scales below were cross-checked on 2026-10-29 against the
+/// Adafruit CircuitPython BNO055 driver (independent source: ACC 0x08 /100, MAG 0x0E /16,
+/// GYR 0x14 /16 deg/s (= 0.0010908 rad/s), EUL 0x1A /16, QUA 0x20 /2^14, LIA 0x28 /100,
+/// GRV 0x2E /100, TEMP 0x34, CALIB_STAT 0x35, offsets 0x55). Bosch datasheet PDF not reachable
+/// from the bot egress, so a direct datasheet check is still open. Not hardware-validated.
+pub mod bno055_reg {
+    pub const CHIP_ID: u8 = 0x00;           // reads 0xA0
+    pub const PAGE_ID: u8 = 0x07;
+    pub const ACC_DATA_X_LSB: u8 = 0x08;    // 6 bytes, 1 LSB = 0.01 m/s^2
+    pub const MAG_DATA_X_LSB: u8 = 0x0E;    // 6 bytes, 1 LSB = 1/16 uT
+    pub const GYR_DATA_X_LSB: u8 = 0x14;    // 6 bytes, 1 LSB = 1/16 deg/s
+    pub const EUL_HEADING_LSB: u8 = 0x1A;   // 6 bytes: heading, roll, pitch, 1 LSB = 1/16 deg
+    pub const QUA_DATA_W_LSB: u8 = 0x20;    // 8 bytes: w, x, y, z, 1 LSB = 1/16384
+    pub const LIA_DATA_X_LSB: u8 = 0x28;    // 6 bytes linear accel, 1 LSB = 0.01 m/s^2
+    pub const GRV_DATA_X_LSB: u8 = 0x2E;    // 6 bytes gravity, 1 LSB = 0.01 m/s^2
+    pub const TEMP: u8 = 0x34;              // 1 byte, 1 LSB = 1 degC
+    pub const CALIB_STAT: u8 = 0x35;
+    pub const SYS_STATUS: u8 = 0x39;
+    pub const SYS_ERR: u8 = 0x3A;
+    pub const UNIT_SEL: u8 = 0x3B;
+    pub const OPR_MODE: u8 = 0x3D;
+    pub const PWR_MODE: u8 = 0x3E;
+    pub const SYS_TRIGGER: u8 = 0x3F;       // bit7 EXT_CRYSTAL, bit5 RST_SYS
+    pub const AXIS_MAP_CONFIG: u8 = 0x41;
+    pub const AXIS_MAP_SIGN: u8 = 0x42;
+    pub const ACC_OFFSET_X_LSB: u8 = 0x55;  // 22 bytes of calibration offsets/radii (config mode only)
+}
+
+pub const BNO055_CHIP_ID: u8 = 0xA0;
+
+/// Calibration status, each field 0 (uncalibrated) ..= 3 (fully calibrated)
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Bno055Calibration {
+    pub sys: u8,
+    pub gyro: u8,
+    pub accel: u8,
+    pub mag: u8,
+}
+
+impl Bno055Calibration {
+    /// CALIB_STAT layout: [7:6] sys, [5:4] gyro, [3:2] accel, [1:0] mag
+    pub fn from_byte(b: u8) -> Self {
+        Self { sys: (b >> 6) & 3, gyro: (b >> 4) & 3, accel: (b >> 2) & 3, mag: b & 3 }
+    }
+    pub fn is_fully_calibrated(&self) -> bool {
+        self.sys == 3 && self.gyro == 3 && self.accel == 3 && self.mag == 3
+    }
+    /// Ready for IMUPLUS (accel + gyro fusion, no magnetometer): the mag field is ignored
+    /// because the magnetometer is not used in that mode (and is unreliable near kart motors).
+    /// `sys` is also ignored: its meaning when mag is unused is not stated unambiguously in
+    /// the datasheet, so only the two sensors that feed the fusion are required. Unverified on hardware.
+    pub fn is_ready_imuplus(&self) -> bool {
+        self.gyro == 3 && self.accel == 3
+    }
+}
+
+/// One fused sample. Units are SI/degrees (UNIT_SEL = 0x00 after init).
+#[derive(Debug, Clone, Copy)]
+pub struct Bno055Reading {
+    pub quaternion: [f32; 4],      // w, x, y, z (unit quaternion)
+    pub euler_deg: [f32; 3],       // heading, roll, pitch
+    pub linear_accel: [f32; 3],    // m/s^2, gravity removed
+    pub gravity: [f32; 3],         // m/s^2
+    pub gyro_dps: [f32; 3],        // deg/s
+    pub temperature_c: i8,
+    pub calibration: Bno055Calibration,
+}
+
+#[derive(Debug)]
+pub enum Bno055Error<E> {
+    I2c(E),
+    /// CHIP_ID did not read 0xA0 (wrong device or wrong address)
+    WrongChipId(u8),
+    /// Non-zero SYS_ERR after mode switch
+    SystemError(u8),
+}
+
+/// Little-endian signed 16-bit at buf[i], i+1 (the BNO055 is LSB first, unlike the MPU6050)
+pub fn bno055_i16(buf: &[u8], i: usize) -> i16 {
+    i16::from_le_bytes([buf[i], buf[i + 1]])
+}
+
+/// Parse 6 bytes into 3 axes scaled by 1/div
+pub fn bno055_vec3(buf: &[u8], div: f32) -> [f32; 3] {
+    [bno055_i16(buf, 0) as f32 / div, bno055_i16(buf, 2) as f32 / div, bno055_i16(buf, 4) as f32 / div]
+}
+
+/// Parse 8 bytes (w, x, y, z) scaled by 1/16384
+pub fn bno055_quat(buf: &[u8]) -> [f32; 4] {
+    const S: f32 = 16384.0;
+    [bno055_i16(buf, 0) as f32 / S, bno055_i16(buf, 2) as f32 / S,
+     bno055_i16(buf, 4) as f32 / S, bno055_i16(buf, 6) as f32 / S]
+}
+
+impl<I2C: I2c> Bno055<I2C> {
+    pub const ADDRESS_A: u8 = 0x28; // COM3 low (default)
+    pub const ADDRESS_B: u8 = 0x29; // COM3 high
+
+    /// Create the driver, verify the chip ID, and enter `mode` (use ImuPlus or Ndof)
+    pub async fn new(i2c: I2C, address: u8, mode: Bno055Mode) -> Result<Self, Bno055Error<I2C::Error>> {
+        let mut dev = Self { i2c, address, mode: Bno055Mode::Config };
+        // Power-on reset takes about 650 ms before CHIP_ID is readable
+        Timer::after(Duration::from_millis(650)).await;
+        let id = dev.read_u8(bno055_reg::CHIP_ID).await?;
+        if id != BNO055_CHIP_ID {
+            return Err(Bno055Error::WrongChipId(id));
+        }
+        dev.set_mode(Bno055Mode::Config).await?;
+        dev.write_u8(bno055_reg::PWR_MODE, 0x00).await?;       // normal power
+        dev.write_u8(bno055_reg::PAGE_ID, 0x00).await?;
+        dev.write_u8(bno055_reg::UNIT_SEL, 0x00).await?;       // m/s^2, dps, deg, degC, Windows orientation
+        dev.write_u8(bno055_reg::SYS_TRIGGER, 0x00).await?;    // internal oscillator (set 0x80 for external crystal)
+        Timer::after(Duration::from_millis(10)).await;
+        dev.set_mode(mode).await?;
+        let err = dev.read_u8(bno055_reg::SYS_ERR).await?;
+        if err != 0 {
+            return Err(Bno055Error::SystemError(err));
+        }
+        Ok(dev)
+    }
+
+    /// Switch operating mode. Datasheet switching times: any->Config 19 ms, Config->any 7 ms.
+    pub async fn set_mode(&mut self, mode: Bno055Mode) -> Result<(), Bno055Error<I2C::Error>> {
+        self.write_u8(bno055_reg::OPR_MODE, mode as u8).await?;
+        let wait = if mode == Bno055Mode::Config { 19 } else { 7 };
+        Timer::after(Duration::from_millis(wait)).await;
+        self.mode = mode;
+        Ok(())
+    }
+
+    /// Axis remap for the mounting orientation (writable in Config mode only).
+    /// config/sign values are the P0..P7 placements in datasheet table 3-35 / 3-36.
+    pub async fn set_axis_remap(&mut self, config: u8, sign: u8) -> Result<(), Bno055Error<I2C::Error>> {
+        let prev = self.mode;
+        self.set_mode(Bno055Mode::Config).await?;
+        self.write_u8(bno055_reg::AXIS_MAP_CONFIG, config).await?;
+        self.write_u8(bno055_reg::AXIS_MAP_SIGN, sign).await?;
+        self.set_mode(prev).await
+    }
+
+    pub async fn calibration(&mut self) -> Result<Bno055Calibration, Bno055Error<I2C::Error>> {
+        Ok(Bno055Calibration::from_byte(self.read_u8(bno055_reg::CALIB_STAT).await?))
+    }
+
+    /// Read the 22 calibration bytes (offsets + radii) so they can be stored and restored.
+    /// Only valid in Config mode, so this briefly leaves fusion.
+    pub async fn read_calibration_profile(&mut self) -> Result<[u8; 22], Bno055Error<I2C::Error>> {
+        let prev = self.mode;
+        self.set_mode(Bno055Mode::Config).await?;
+        let mut buf = [0u8; 22];
+        self.i2c.write_read(self.address, &[bno055_reg::ACC_OFFSET_X_LSB], &mut buf).await.map_err(Bno055Error::I2c)?;
+        self.set_mode(prev).await?;
+        Ok(buf)
+    }
+
+    pub async fn write_calibration_profile(&mut self, profile: &[u8; 22]) -> Result<(), Bno055Error<I2C::Error>> {
+        let prev = self.mode;
+        self.set_mode(Bno055Mode::Config).await?;
+        let mut out = [0u8; 23];
+        out[0] = bno055_reg::ACC_OFFSET_X_LSB;
+        out[1..].copy_from_slice(profile);
+        self.i2c.write(self.address, &out).await.map_err(Bno055Error::I2c)?;
+        self.set_mode(prev).await
+    }
+
+    /// Read one fused sample. Uses a burst read per block; the chip updates at 100 Hz in fusion modes.
+    pub async fn read(&mut self) -> Result<Bno055Reading, Bno055Error<I2C::Error>> {
+        let mut gyr = [0u8; 6];
+        let mut eul = [0u8; 6];
+        let mut qua = [0u8; 8];
+        let mut lia = [0u8; 6];
+        let mut grv = [0u8; 6];
+        self.i2c.write_read(self.address, &[bno055_reg::GYR_DATA_X_LSB], &mut gyr).await.map_err(Bno055Error::I2c)?;
+        self.i2c.write_read(self.address, &[bno055_reg::EUL_HEADING_LSB], &mut eul).await.map_err(Bno055Error::I2c)?;
+        self.i2c.write_read(self.address, &[bno055_reg::QUA_DATA_W_LSB], &mut qua).await.map_err(Bno055Error::I2c)?;
+        self.i2c.write_read(self.address, &[bno055_reg::LIA_DATA_X_LSB], &mut lia).await.map_err(Bno055Error::I2c)?;
+        self.i2c.write_read(self.address, &[bno055_reg::GRV_DATA_X_LSB], &mut grv).await.map_err(Bno055Error::I2c)?;
+        let temp = self.read_u8(bno055_reg::TEMP).await? as i8;
+        let cal = self.calibration().await?;
+        Ok(Bno055Reading {
+            quaternion: bno055_quat(&qua),
+            euler_deg: bno055_vec3(&eul, 16.0),
+            linear_accel: bno055_vec3(&lia, 100.0),
+            gravity: bno055_vec3(&grv, 100.0),
+            gyro_dps: bno055_vec3(&gyr, 16.0),
+            temperature_c: temp,
+            calibration: cal,
+        })
+    }
+
+    async fn read_u8(&mut self, reg: u8) -> Result<u8, Bno055Error<I2C::Error>> {
+        let mut b = [0u8; 1];
+        self.i2c.write_read(self.address, &[reg], &mut b).await.map_err(Bno055Error::I2c)?;
+        Ok(b[0])
+    }
+
+    async fn write_u8(&mut self, reg: u8, val: u8) -> Result<(), Bno055Error<I2C::Error>> {
+        self.i2c.write(self.address, &[reg, val]).await.map_err(Bno055Error::I2c)
+    }
+}
+
+#[cfg(test)]
+mod bno055_tests {
+    use super::*;
+
+    #[test]
+    fn calibration_bits_unpack() {
+        let c = Bno055Calibration::from_byte(0b11_10_01_00);
+        assert_eq!((c.sys, c.gyro, c.accel, c.mag), (3, 2, 1, 0));
+        assert!(!c.is_fully_calibrated());
+        assert!(Bno055Calibration::from_byte(0xFF).is_fully_calibrated());
+    }
+
+    #[test]
+    fn imuplus_ready_ignores_mag_and_sys() {
+        // sys 0, gyro 3, accel 3, mag 0 -> ready for IMUPLUS, not fully calibrated
+        let c = Bno055Calibration::from_byte(0b00_11_11_00);
+        assert!(c.is_ready_imuplus());
+        assert!(!c.is_fully_calibrated());
+        // accel or gyro below 3 -> not ready
+        assert!(!Bno055Calibration::from_byte(0b11_11_10_11).is_ready_imuplus());
+        assert!(!Bno055Calibration::from_byte(0b11_10_11_11).is_ready_imuplus());
+    }
+
+    #[test]
+    fn i16_is_little_endian_and_signed() {
+        assert_eq!(bno055_i16(&[0x00, 0x40], 0), 0x4000);
+        assert_eq!(bno055_i16(&[0xFF, 0xFF], 0), -1);
+        assert_eq!(bno055_i16(&[0x00, 0x80], 0), i16::MIN);
+    }
+
+    #[test]
+    fn identity_quaternion() {
+        // w = 1.0 -> 0x4000 = 16384 LSB
+        let q = bno055_quat(&[0x00, 0x40, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(q, [1.0, 0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn euler_and_accel_scaling() {
+        // 90 deg heading = 1440 LSB; -45 deg roll = -720; 0 pitch
+        let e = bno055_vec3(&[0xA0, 0x05, 0x30, 0xFD, 0, 0], 16.0);
+        assert_eq!(e, [90.0, -45.0, 0.0]);
+        // 1 g = 981 LSB at 0.01 m/s^2 per LSB -> 9.81 m/s^2
+        let g = bno055_vec3(&[0, 0, 0, 0, 0xD5, 0x03], 100.0);
+        assert!((g[2] - 9.81).abs() < 1e-5);
+    }
+}
+"#;
 // STATUS: placeholder (no real driver; FW-014)
 const ACS712_DRIVER: &str = "// ACS712: Hall-effect current sensor (ADC)";
 // STATUS: placeholder (no real driver; FW-014)
