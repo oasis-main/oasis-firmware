@@ -1,7 +1,7 @@
 # FW-015 — Board detect, flash recipe, log capture (spec, draft)
 
 Status: DRAFT for review. Spec only; no code, nothing compiled (no cargo on the author's host).
-Lane: ORG-117 hardware terminal, oasis-firmware/desktop (oasis-studio, egui 0.27).
+Scope: hardware terminal, oasis-firmware/desktop (oasis-studio, egui 0.27).
 Verification levels use the FW-013 tags: placeholder < compiles < sim-validated < hw-validated.
 Everything below is `placeholder` until built; anything that touches a real board is `hw-validated` only after a human with a board runs it.
 
@@ -90,7 +90,7 @@ Written next to the log as `report_{utc}.json` and shown in the UI:
 - L1 (compiles): `services/` skeleton, traits, `boards.yaml` loader, recipe expansion, state machine with unit tests; deploy.rs bound to real state (fixes the literal-binding bug in section 1).
 - L2 (sim-validated): detection with fake ports, log capture with a pty pair or a fake source, dry-run end to end.
 - L3 (real USB, no flashing): enumerate and monitor a board that is already running, read-only.
-- L4 (hw-validated): flash + verify on a bench board. **Needs Mike's bench device and a human on USB/SWD.** Out of reach for the bot lane; DIR-0019 bars flashing any device that is not Mike's bench board.
+- L4 (hw-validated): flash + verify on a bench board. **Needs the maintainer's bench device and a human on USB/SWD.** Out of reach for automation; project policy bars flashing any device that is not the maintainer's bench board.
 
 ## 9. Open questions for Mike
 
