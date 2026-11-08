@@ -1,0 +1,22 @@
+oasis-firmware
+Copyright 2019-2026 Michael Harrison Lee and the oasis-firmware contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This repository also contains third-party components. They keep their own
+licenses. The Apache License 2.0 of this repository does not apply to them.
+
+1. simavr (directory `simavr/`)
+   Copyright Michel Pollet and the simavr contributors.
+   License: GNU General Public License, version 3 (see `simavr/COPYING`).
+   The oasis-firmware code does not link to simavr. The simulation tools
+   start the `simavr` program as a separate process.
+
+2. stm32f1xx-hal (directory `platforms/mcu/platforms/stm32f103/stm32f1xx-hal/`)
+   License: MIT OR Apache-2.0 (see `LICENSE-MIT` and `LICENSE-APACHE` in
+   that directory).
+
+3. ESP32-CAM example sketches by Rui Santos (RandomNerdTutorials.com)
+   `legacy/ino/platforms/ESP32_CAM_Ai_Thinker/projects/ESP32_Cam_PIR_Photo_Trap/`
+   `legacy/ino/platforms/ESP32_CAM_Ai_Thinker/projects/ESP32_Cam_Send_Photo/`
+   License: a permissive notice in each file header. Keep the header.

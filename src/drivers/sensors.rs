@@ -702,6 +702,11 @@ pub enum Bno055Mode {
     Ndof = 0x0C,
 }
 
+/// Register addresses and per-LSB scales below were cross-checked on 2026-10-29 against the
+/// Adafruit CircuitPython BNO055 driver (independent source: ACC 0x08 /100, MAG 0x0E /16,
+/// GYR 0x14 /16 deg/s (= 0.0010908 rad/s), EUL 0x1A /16, QUA 0x20 /2^14, LIA 0x28 /100,
+/// GRV 0x2E /100, TEMP 0x34, CALIB_STAT 0x35, offsets 0x55). Bosch datasheet PDF not reachable
+/// from the bot egress, so a direct datasheet check is still open. Not hardware-validated.
 pub mod bno055_reg {
     pub const CHIP_ID: u8 = 0x00;           // reads 0xA0
     pub const PAGE_ID: u8 = 0x07;
@@ -743,6 +748,13 @@ impl Bno055Calibration {
     }
     pub fn is_fully_calibrated(&self) -> bool {
         self.sys == 3 && self.gyro == 3 && self.accel == 3 && self.mag == 3
+    }
+    /// Ready for IMUPLUS (accel + gyro fusion, no magnetometer): the mag field is ignored
+    /// because the magnetometer is not used in that mode (and is unreliable near kart motors).
+    /// `sys` is also ignored: its meaning when mag is unused is not stated unambiguously in
+    /// the datasheet, so only the two sensors that feed the fusion are required. Unverified on hardware.
+    pub fn is_ready_imuplus(&self) -> bool {
+        self.gyro == 3 && self.accel == 3
     }
 }
 
@@ -901,6 +913,17 @@ mod bno055_tests {
         assert_eq!((c.sys, c.gyro, c.accel, c.mag), (3, 2, 1, 0));
         assert!(!c.is_fully_calibrated());
         assert!(Bno055Calibration::from_byte(0xFF).is_fully_calibrated());
+    }
+
+    #[test]
+    fn imuplus_ready_ignores_mag_and_sys() {
+        // sys 0, gyro 3, accel 3, mag 0 -> ready for IMUPLUS, not fully calibrated
+        let c = Bno055Calibration::from_byte(0b00_11_11_00);
+        assert!(c.is_ready_imuplus());
+        assert!(!c.is_fully_calibrated());
+        // accel or gyro below 3 -> not ready
+        assert!(!Bno055Calibration::from_byte(0b11_11_10_11).is_ready_imuplus());
+        assert!(!Bno055Calibration::from_byte(0b11_10_11_11).is_ready_imuplus());
     }
 
     #[test]

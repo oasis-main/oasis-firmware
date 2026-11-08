@@ -244,3 +244,12 @@ The original Python-based RPi toolkit (`legacy/rpi/`) is preserved for reference
 | Robot arm (6-DOF) | RPi + I2C servo driver | Advanced — custom app |
 | Outdoor weather station | ESP32 | Simple — use YAML |
 | Automated irrigation grid | RPi + relay bank | Moderate — YAML + control loop |
+
+---
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
+
+Third-party components in this repository keep their own licenses. See
+[NOTICE](NOTICE). The vendored `simavr/` emulator is GPL-3.0.
