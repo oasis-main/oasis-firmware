@@ -3,7 +3,7 @@ name = "oasis-core"
 version = "0.1.0"
 edition = "2021"
 description = "Core types and utilities for Oasis firmware generation"
-license = "MIT"
+license = "Apache-2.0"
 
 [lib]
 name = "oasis_core"

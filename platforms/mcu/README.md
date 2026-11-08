@@ -290,4 +290,4 @@ Error: No serial port detected
 
 ## License
 
-MIT License for a variety of platforms
+Apache License 2.0. See [LICENSE](../../LICENSE) and [NOTICE](../../NOTICE). Vendored crates under `platforms/` keep their own licenses.
