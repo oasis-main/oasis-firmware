@@ -1,12 +1,12 @@
 # FW-012: Sensor fusion and dead-reckoning design (kart consumer of BNO055)
 
 Status: DESIGN NOTE, not implemented. Stacked on FW-014 (PR #43, BNO055 driver, "implemented, unvalidated").
-Author: ButterBolt (DIR-0019). Numbers marked [verify] come from memory and need a datasheet check.
+Numbers marked [verify] come from memory and need a datasheet check.
 
 ## 1. Goal and honest limits
 
 Give a kart logger a usable orientation and short-horizon motion estimate from one BNO055,
-so lap analysis (Nimbus lane) can use IMU data when GPS is poor or sampled slowly.
+so lap analysis can use IMU data when GPS is poor or sampled slowly.
 
 Dead-reckoning from a MEMS accelerometer alone drifts quadratically. Position error from a
 constant accel bias b after t seconds is 0.5*b*t^2:
@@ -73,7 +73,7 @@ EKF proves too heavy; it already gives most of the value for lap analysis.
 
 1. Replay: GoPro GPMF IMU/GPS from the planned HERO clip (PR #7 `gpmf_extract`) through the
    Python reference filter; compare interpolated position against held-out GPS fixes
-   (drop 2 s windows and measure error). Success metric to be set with Nimbus.
+   (drop 2 s windows and measure error). Success metric to be set with the lap-analysis owner.
 2. Synthetic: simulated kart paths with injected bias/noise to confirm the drift table above.
 3. Hardware-in-loop only after FW-015 (needs Mike's bench board); status tag stays
    "implemented, unvalidated" until then.
@@ -83,7 +83,7 @@ EKF proves too heavy; it already gives most of the value for lap analysis.
 - Real data: no GPMF source file yet (waiting on the 60 s original MP4 with 3 taps).
 - Rust toolchain: none in this container, so Rust code cannot be compiled; the Python reference is the first deliverable.
 - BNO055 scale factors and zero-g offset need a datasheet check (see PR #43 review note).
-- Ask Nimbus: required output rate and accuracy for lap comparison; GPS rate of the real logger.
+- Ask the lap-analysis owner: required output rate and accuracy for lap comparison; GPS rate of the real logger.
 
 ## 8. Next steps
 
