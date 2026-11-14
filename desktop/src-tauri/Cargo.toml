@@ -1,0 +1,35 @@
+[package]
+name = "oasis-studio"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Oasis Studio: design, simulate, flash, and command hobby hardware"
+rust-version = "1.77"
+
+[lib]
+name = "oasis_studio_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+serialport = "4"
+which = "6"
+sha2 = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5"
+oasis-core = { path = "../.." }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

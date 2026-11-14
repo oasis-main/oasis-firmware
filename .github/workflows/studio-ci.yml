@@ -1,0 +1,49 @@
+# Oasis Studio: build and test the desktop app on macOS, Windows, and Linux.
+name: studio-ci
+
+on:
+  pull_request:
+    paths: ["desktop/**", "src/**", "Cargo.toml", "examples/**", ".github/workflows/studio-*.yml"]
+  push:
+    branches: [master]
+    paths: ["desktop/**", "src/**", "Cargo.toml", "examples/**", ".github/workflows/studio-*.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux system packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - run: npm ci
+      - run: npm run build
+      - name: Back-end tests
+        working-directory: desktop/src-tauri
+        run: cargo test --locked

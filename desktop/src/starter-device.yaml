@@ -1,0 +1,40 @@
+# Starter device for Oasis Studio.
+# Edit this file, press Validate, then Generate.
+# Values such as ${WIFI_SSID} stay as placeholders in the generated code.
+
+device:
+  id: bench-esp32-01
+  name: "Bench ESP32 with a DHT22"
+  board:
+    platform: mcu
+    model: esp32_devkit
+
+connectivity:
+  mode: direct_mqtt
+  wifi:
+    ssid: "${WIFI_SSID}"
+    password: "${WIFI_PASSWORD}"
+  mqtt:
+    broker: "mqtt.local"
+    port: 1883
+    use_tls: false
+
+auth:
+  api_key: "${DEVICE_API_KEY}"
+
+sensors:
+  - name: air
+    type: dht22
+    pins:
+      data: 4
+    sampling:
+      interval_ms: 5000
+      averaging: 3
+    output:
+      measurements:
+        - name: temperature
+          unit: "°C"
+          precision: 1
+        - name: humidity
+          unit: "%RH"
+          precision: 1

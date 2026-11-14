@@ -1,0 +1,70 @@
+# Oasis Studio: build installers for macOS, Windows, and Linux and attach
+# them to a DRAFT GitHub release. A person reviews the draft and publishes it.
+#
+# Start: push a tag such as `studio-v0.1.0`, or run the workflow by hand.
+#
+# Signing: v0.1 builds are not notarized. macOS builds are ad-hoc signed
+# (tauri.conf.json bundle.macOS.signingIdentity "-"). To add Apple
+# notarization or Windows code signing later, add the repository secrets
+# and the env lines that docs/STUDIO_RELEASE.md lists.
+name: studio-release
+
+on:
+  push:
+    tags: ["studio-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            args: "--target universal-apple-darwin"
+          - os: ubuntu-22.04
+            args: ""
+          - os: windows-latest
+            args: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux system packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Install front-end packages
+        working-directory: desktop
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'studio-v__VERSION__' }}
+          releaseName: "Oasis Studio v__VERSION__"
+          releaseBody: "Installers for macOS, Windows, and Linux. See the download page for install notes."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

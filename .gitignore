@@ -35,6 +35,7 @@ oasis_venv_pi/
 .Python
 env/
 bin/
+!src/bin/
 develop-eggs/
 eggs/
 lib/
@@ -86,3 +87,9 @@ docs/_build/
 
 # Pyenv
 .python-version
+# Oasis Studio desktop app (Tauri)
+!desktop/src-tauri/Cargo.lock
+desktop/node_modules/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+site/node_modules/

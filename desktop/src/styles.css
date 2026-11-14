@@ -1,0 +1,91 @@
+/* Same palette as the other Oasis apps (dark, green accent). */
+:root {
+  --bg: #12181e;
+  --panel: #1a222a;
+  --bar: #232e38;
+  --line: #2f3c48;
+  --text: #e3e8ec;
+  --muted: #8e9ba8;
+  --accent: #2fb27c;
+  --warn: #e0a84a;
+  --bad: #e06a5f;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.app { display: flex; flex-direction: column; height: 100%; }
+
+.topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px; background: var(--bar);
+  border-bottom: 1px solid var(--line); flex: 0 0 auto;
+}
+.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 650; letter-spacing: 0.2px; }
+.brand img { width: 22px; height: 22px; border-radius: 5px; }
+.badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; border: 1px solid var(--line); color: var(--muted); }
+.badge.warn { color: var(--warn); border-color: var(--warn); }
+.spacer { flex: 1; }
+
+.workspace { flex: 1; display: grid; grid-template-columns: 170px minmax(0, 1fr) 290px; min-height: 0; }
+.nav { border-right: 1px solid var(--line); background: var(--panel); padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; }
+.nav > div { display: flex; flex-direction: column; gap: 2px; }
+.nav button {
+  text-align: left; background: none; border: 0; color: var(--muted);
+  padding: 7px 10px; border-radius: 6px; font: inherit; cursor: pointer;
+}
+.nav button:hover { color: var(--text); background: #1f2933; }
+.nav button.active { color: var(--text); background: #24313c; box-shadow: inset 2px 0 0 var(--accent); }
+.nav .group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); padding: 10px 10px 4px; }
+
+.view { overflow: auto; padding: 18px 22px 40px; min-width: 0; }
+.view h2 { margin: 0 0 4px; font-size: 17px; }
+.view .lede { color: var(--muted); margin: 0 0 16px; max-width: 70ch; }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 14px; overflow-x: auto; }
+.card h3 { margin: 0 0 10px; font-size: 13px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+button.btn, .btn {
+  background: #171d24; color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #06130d; font-weight: 600; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.danger:hover:not(:disabled) { border-color: var(--bad); color: var(--bad); }
+
+input, select, textarea {
+  background: #11171d; color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 8px; font: inherit;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+label.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+textarea.code { width: 100%; min-height: 360px; font: 12px/1.5 var(--mono); resize: vertical; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 12px; }
+td.mono, .mono { font-family: var(--mono); font-size: 12px; }
+.muted { color: var(--muted); }
+.ok { color: var(--accent); }
+.bad { color: var(--bad); }
+.warn { color: var(--warn); }
+ul.plain { margin: 0; padding-left: 18px; }
+pre.box { background: #0e1318; border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow: auto; font: 12px/1.5 var(--mono); margin: 0; }
+
+.assistant { border-left: 1px solid var(--line); background: var(--panel); padding: 14px; overflow: auto; }
+.assistant h3 { margin: 0 0 8px; font-size: 14px; }
+.assistant li { margin-bottom: 6px; }
+.assistant .tool { font-family: var(--mono); font-size: 12px; }
+.assistant .lock { border: 1px dashed var(--line); border-radius: 8px; padding: 12px; margin-top: 12px; }
+
+.error { color: var(--bad); background: #2a1716; border: 1px solid #5a2a26; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+.notice { color: var(--text); background: #16261f; border: 1px solid #23503d; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }

@@ -15,6 +15,8 @@ Oasis Firmware is a unified hardware management framework that supports:
 oasis-firmware/
 ├── src/                    # Rust firmware generator (oasis-build CLI)
 ├── examples/               # device.yaml examples (greenhouse, drone)
+├── desktop/                # Oasis Studio desktop app (Tauri 2)
+├── site/                   # Oasis Studio overview and download pages
 ├── docs/                   # Schema docs, deployment guide, desktop app design
 ├── kicad_bridge/           # Python KiCAD integration tools
 └── legacy/
@@ -76,7 +78,9 @@ See `legacy/rpi/README.md` for full documentation.
 
 - [Device Schema](docs/DEVICE_SCHEMA.md) - YAML configuration reference
 - [Deployment Guide](docs/DEPLOYMENT.md) - Flashing and deployment techniques
-- [Desktop App Design](docs/DESKTOP_APP_DESIGN.md) - Planned egui desktop application
+- [Oasis Studio](desktop/README.md) - Desktop app (Tauri 2) for macOS, Windows, and Linux
+- [Oasis Studio build and release](docs/STUDIO_RELEASE.md) - Build from source, release, signing
+- [Desktop App Design](docs/DESKTOP_APP_DESIGN.md) - Original egui design (superseded by Oasis Studio)
 
 ## Supported Platforms
 
@@ -102,7 +106,8 @@ The current architecture separates concerns across three layers:
 | Build | `oasis-build` CLI | Rust | YAML → firmware code generation |
 | Runtime (RPi) | Launcher + app folder | Rust + egui | Sandboxed app execution via systemd |
 | Runtime (MCU) | `oasis-mcu` | C++ (Arduino) | Compile-time app composition with menu system |
-| Desktop | `oasis-manager` | Rust + egui | SD flashing, Arduino flashing, app repository |
+| Desktop | Oasis Studio (`desktop/`) | Rust + Tauri 2 + React | Design, generate, board detection, owned-device list, flash plan |
+| Desktop (spec) | `oasis-manager` | Rust + egui | SD flashing, Arduino flashing, app repository |
 | Simulation | BehavioralRuntime | Python | Hardware-in-the-loop testing, MCP server |
 
 See [SIMPLIFIED_ARCHITECTURE.md](SIMPLIFIED_ARCHITECTURE.md) for the full design rationale and [FIRMWARE_ANALYSIS_AND_ROADMAP.md](FIRMWARE_ANALYSIS_AND_ROADMAP.md) for current status and roadmap.

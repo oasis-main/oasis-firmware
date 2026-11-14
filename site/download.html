@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Download Oasis Studio</title>
+  <meta name="description" content="Download Oasis Studio for macOS, Windows, or Linux." />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="wrap">
+      <a class="logo" href="./"><img src="icon.svg" alt="" /> Oasis Studio</a>
+      <nav>
+        <a href="./">Overview</a>
+        <a href="download.html" aria-current="page">Download</a>
+        <a href="https://github.com/oasis-main/oasis-firmware">Source</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap hero" style="padding-bottom: 16px">
+      <h1>Download Oasis Studio</h1>
+      <p class="lede">Free and open source under the Apache License 2.0. No account needed.</p>
+    </div>
+
+    <section style="padding-top: 0">
+      <div class="wrap">
+        <div class="card" id="downloads">
+          <p class="small">Reading the newest release from GitHub…</p>
+          <noscript><p>Open <a href="https://github.com/oasis-main/oasis-firmware/releases">the releases page</a> to download.</p></noscript>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Install notes</h2>
+        <p class="sub">Version 0.1 is not yet signed by Apple or Microsoft. Your computer warns you the first time. These steps open the app.</p>
+        <div class="grid">
+          <div class="card">
+            <h3>macOS 11 or later</h3>
+            <ul>
+              <li>Open the <code>.dmg</code> and drag Oasis Studio to Applications.</li>
+              <li>Open the app. macOS stops the app the first time.</li>
+              <li>Open System Settings → Privacy &amp; Security. Click <b>Open Anyway</b>.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Windows 10 or 11</h3>
+            <ul>
+              <li>Run the <code>-setup.exe</code> or the <code>.msi</code>.</li>
+              <li>If SmartScreen shows a warning, click <b>More info</b>, then <b>Run anyway</b>.</li>
+              <li>Board drivers: CP210x and CH340 boards can need the vendor's USB driver.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Linux</h3>
+            <ul>
+              <li>AppImage: <code>chmod +x Oasis*.AppImage</code>, then run the file.</li>
+              <li>Or install the <code>.deb</code> or <code>.rpm</code> with your package manager.</li>
+              <li>Serial access: <code>sudo usermod -aG dialout $USER</code> (Arch: <code>uucp</code>). Log out and log in.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Flash tools</h2>
+        <p class="sub">Oasis Studio uses the standard open-source flash tools. Install the tools for your boards. The Hardware page shows which tools the app finds.</p>
+        <pre><code>cargo install espflash probe-rs-tools   # ESP32, STM32 and RP2040 over a debug probe
+pip install mpremote                     # MicroPython boards
+# picotool, avrdude, arduino-cli: use your package manager (Homebrew, winget, apt)</code></pre>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Build from source</h2>
+        <p class="sub">Needs Rust (stable) and Node.js 20 or later. Linux also needs the WebKitGTK and libudev development packages.</p>
+        <pre><code>git clone https://github.com/oasis-main/oasis-firmware
+cd oasis-firmware/desktop
+npm ci
+npm run tauri build</code></pre>
+        <p class="small">Full steps: <a href="https://github.com/oasis-main/oasis-firmware/blob/master/docs/STUDIO_RELEASE.md">docs/STUDIO_RELEASE.md</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site">
+    <div class="wrap">
+      <span>Oasis Studio is part of oasis-firmware. Apache License 2.0.</span>
+      <a href="https://github.com/oasis-main/oasis-firmware">GitHub</a>
+      <a href="https://github.com/oasis-main/oasis-firmware/issues">Report a problem</a>
+    </div>
+  </footer>
+  <script src="download.js"></script>
+</body>
+</html>
