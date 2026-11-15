@@ -43,7 +43,7 @@ chrono = "0.4"
 open = "5.0"
 
 # Local dependency
-oasis-core = { path = ".." }
+oasis-core = { path = "../.." }
 
 [features]
 default = []

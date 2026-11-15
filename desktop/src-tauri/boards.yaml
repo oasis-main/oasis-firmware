@@ -1,0 +1,58 @@
+# Board detection and flash recipes for Oasis Studio.
+#
+# This file is data, not code. Add a row to support a new board.
+# The app embeds this file at build time (src/boards.rs).
+#
+# STATUS: placeholder. Verify each vid:pid row against the vendor's
+# documentation before you mark the row "hw-validated" (FW-013 tags).
+#
+# confidence:
+#   exact      - the USB id names the board family
+#   bridge     - the USB id names only a USB-UART bridge chip; the user
+#                must pick the family before the app plans a flash
+#
+# args: one list entry for each argument. The app replaces {port},
+# {baud}, {artifact} and {chip} inside an entry. The app never joins the
+# entries into a shell command string.
+
+usb:
+  - { vid: 0x303A, pid: null,   family: esp32,      confidence: exact,  label: "Espressif native USB (ESP32-S2/S3/C3)" }
+  - { vid: 0x10C4, pid: 0xEA60, family: null,       confidence: bridge, label: "Silicon Labs CP210x USB-UART bridge" }
+  - { vid: 0x1A86, pid: 0x7523, family: null,       confidence: bridge, label: "WCH CH340 USB-UART bridge" }
+  - { vid: 0x1A86, pid: 0x55D4, family: null,       confidence: bridge, label: "WCH CH9102 USB-UART bridge" }
+  - { vid: 0x0403, pid: 0x6001, family: null,       confidence: bridge, label: "FTDI FT232R USB-UART bridge" }
+  - { vid: 0x2E8A, pid: 0x0003, family: rp2040,     confidence: exact,  label: "Raspberry Pi RP2040 BOOTSEL" }
+  - { vid: 0x2E8A, pid: 0x0005, family: micropython, confidence: exact, label: "Raspberry Pi RP2040 MicroPython" }
+  - { vid: 0x2E8A, pid: 0x000A, family: rp2040,     confidence: exact,  label: "Raspberry Pi RP2040 USB serial" }
+  - { vid: 0x0483, pid: 0x3748, family: stm32,      confidence: exact,  label: "ST-LINK/V2 debug probe" }
+  - { vid: 0x0483, pid: 0x374B, family: stm32,      confidence: exact,  label: "ST-LINK/V2-1 debug probe" }
+  - { vid: 0x2341, pid: 0x0043, family: avr_uno,    confidence: exact,  label: "Arduino Uno R3" }
+  - { vid: 0x2341, pid: null,   family: null,       confidence: bridge, label: "Arduino board (pick the model)" }
+
+families:
+  - family: esp32
+    label: "ESP32 (espflash)"
+    tool: espflash
+    baud: 115200
+    args: ["flash", "--port", "{port}", "{artifact}"]
+  - family: rp2040
+    label: "RP2040 (picotool)"
+    tool: picotool
+    baud: 115200
+    args: ["load", "-x", "{artifact}"]
+  - family: micropython
+    label: "MicroPython board (mpremote)"
+    tool: mpremote
+    baud: 115200
+    args: ["connect", "{port}", "cp", "{artifact}", ":main.py"]
+  - family: stm32
+    label: "STM32 over a debug probe (probe-rs)"
+    tool: probe-rs
+    baud: 115200
+    chip: STM32F103C8
+    args: ["download", "--chip", "{chip}", "{artifact}"]
+  - family: avr_uno
+    label: "Arduino Uno / ATmega328P (avrdude)"
+    tool: avrdude
+    baud: 115200
+    args: ["-p", "atmega328p", "-c", "arduino", "-P", "{port}", "-b", "{baud}", "-U", "flash:w:{artifact}:i"]

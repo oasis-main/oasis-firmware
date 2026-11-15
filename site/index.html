@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Oasis Studio</title>
+  <meta name="description" content="Open-source desktop app to design, simulate, flash, and command hobby hardware, and to repair the devices you already own." />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site">
+    <div class="wrap">
+      <a class="logo" href="./"><img src="icon.svg" alt="" /> Oasis Studio</a>
+      <nav>
+        <a href="./" aria-current="page">Overview</a>
+        <a href="download.html">Download</a>
+        <a href="https://github.com/oasis-main/oasis-firmware">Source</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap hero">
+      <h1>Build hardware. Fix the hardware you already have.</h1>
+      <p class="lede">
+        Oasis Studio is a free, open-source desktop app for microcontrollers and single-board computers.
+        Describe a device, generate its firmware, and put it on an ESP32, RP2040, STM32, Arduino, or Raspberry Pi.
+        Then point the same tools at a device you own and find out what it does.
+      </p>
+      <div class="cta">
+        <a class="btn primary" id="cta-download" href="download.html">Download</a>
+        <a class="btn" href="https://github.com/oasis-main/oasis-firmware">View the source</a>
+        <span class="small">macOS · Windows · Linux · Apache-2.0</span>
+      </div>
+    </div>
+
+    <section>
+      <div class="wrap">
+        <h2>One tool set, two directions</h2>
+        <p class="sub">Most tools help you make a new board work. Oasis Studio also helps you understand a board that someone else made.</p>
+        <div class="grid">
+          <div class="card">
+            <h3>Design</h3>
+            <p>Write one <code>device.yaml</code>: the board, the sensors, the actuators, the control loops.</p>
+            <p>Oasis Studio checks the file and writes Rust firmware for the board. The same file also feeds a KiCad schematic scaffold and a parts list.</p>
+          </div>
+          <div class="card">
+            <h3>Reach</h3>
+            <p>See every board on USB, with its USB id, serial number, and board family.</p>
+            <p>Oasis Studio finds your flash tools (espflash, probe-rs, picotool, avrdude, mpremote) and builds the exact command for each board.</p>
+          </div>
+          <div class="card">
+            <h3>Investigate</h3>
+            <p>Work on hardware you own: a dead smart-home device, a gadget with a closed app, an old controller.</p>
+            <p>Read what the device reports, back up its firmware before any change, and replace the firmware when the vendor is gone.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Safe by design</h2>
+        <p class="sub">A tool that can flash firmware can also break a device. These rules are in the code, not only in the manual.</p>
+        <div class="grid two">
+          <div class="card">
+            <h3>Your devices only</h3>
+            <p>Oasis Studio writes only to devices in your owned-device list. You add each device and confirm that you own it. A flash to any other device is refused.</p>
+          </div>
+          <div class="card">
+            <h3>You confirm every flash</h3>
+            <p>Before a flash, the app shows the board, the port, the tool, every argument, and the firmware hash. Nothing runs until you press the button.</p>
+          </div>
+          <div class="card">
+            <h3>No shell strings</h3>
+            <p>The app starts each tool with a list of arguments. A port name or a file name cannot turn into a second command.</p>
+          </div>
+          <div class="card">
+            <h3>A log of every change</h3>
+            <p>Each device added, each firmware build, and each flash plan writes one line to a local activity log. The log stays on your computer.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>An assistant that proposes</h2>
+        <p class="sub">
+          The assistant uses the same functions as the buttons. It can read a datasheet, explain a validation error,
+          write a driver, and prepare a flash plan. It cannot flash or command a device by itself. Chat arrives with
+          account sign-in in a later release. Everything else works offline, with no account.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>What works today</h2>
+        <p class="sub">Oasis Studio is at version 0.1. This table is the honest state.</p>
+        <table class="status">
+          <thead><tr><th>Feature</th><th>State</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>USB board detection and tool check</td><td><span class="tag now">v0.1</span></td><td>ESP32, RP2040, STM32 probes, Arduino, common USB-UART bridges</td></tr>
+            <tr><td>device.yaml validation and firmware generation</td><td><span class="tag now">v0.1</span></td><td>ESP32, STM32, Teensy, Raspberry Pi targets</td></tr>
+            <tr><td>Owned-device list and activity log</td><td><span class="tag now">v0.1</span></td><td>Local files only</td></tr>
+            <tr><td>Flash plan</td><td><span class="tag now">v0.1</span></td><td>Shows the command and every blocker</td></tr>
+            <tr><td>Supervised flash and serial monitor</td><td><span class="tag next">next</span></td><td>Confirm dialog, live output, verify after flash</td></tr>
+            <tr><td>Assistant chat</td><td><span class="tag next">next</span></td><td>Needs account sign-in</td></tr>
+            <tr><td>Simulation panel</td><td><span class="tag next">next</span></td><td>Behavioral models, simavr, Renode</td></tr>
+            <tr><td>Network devices, BLE, Zigbee</td><td><span class="tag next">planned</span></td><td>Same owned-device rule</td></tr>
+            <tr><td>Exported controllers</td><td><span class="tag next">planned</span></td><td>Run a controller on another computer with no desktop app</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site">
+    <div class="wrap">
+      <span>Oasis Studio is part of oasis-firmware. Apache License 2.0.</span>
+      <a href="https://github.com/oasis-main/oasis-firmware">GitHub</a>
+      <a href="https://github.com/oasis-main/oasis-firmware/issues">Report a problem</a>
+    </div>
+  </footer>
+  <script src="download.js"></script>
+</body>
+</html>
