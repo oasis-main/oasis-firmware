@@ -3,6 +3,9 @@
 //! v0.1 builds and shows the plan only: tool, exact argument list, artifact
 //! hash, and every reason the flash cannot run. The supervised flash run
 //! (confirm dialog, streamed output, verify) is the next FW-015 step.
+//!
+//! A plan never runs the flash tool. The MCP server exposes this plan; it
+//! has no tool that runs a flash.
 
 use crate::boards;
 use crate::registry::{IdentityKind, Store};
@@ -54,7 +57,7 @@ pub(crate) fn sha256_file(p: &Path) -> Option<String> {
     Some(digest.iter().map(|b| format!("{b:02x}")).collect())
 }
 
-pub fn plan(req: &PlanRequest, store: &Store) -> FlashPlan {
+pub fn plan(req: &PlanRequest, store: &Store, actor: &str) -> FlashPlan {
     let mut blockers = Vec::new();
     let Some(fam) = boards::family(&req.family) else {
         return FlashPlan {
@@ -95,7 +98,7 @@ pub fn plan(req: &PlanRequest, store: &Store) -> FlashPlan {
 
     let args = substitute(&fam.args, &req.port, fam.baud, &req.artifact, fam.chip.as_deref());
     store.audit(
-        "user",
+        actor,
         "flash.plan",
         &req.port,
         if blockers.is_empty() { "ready" } else { "blocked" },
@@ -137,6 +140,7 @@ mod tests {
                 usb_serial: Some("XYZ".into()),
             },
             &store,
+            "user",
         );
         assert!(p.blockers.iter().any(|b| b.contains("not in the owned-device list")));
         assert!(p.blockers.iter().any(|b| b.contains("Firmware file not found")));

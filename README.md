@@ -16,6 +16,9 @@ oasis-firmware/
 ├── src/                    # Rust firmware generator (oasis-build CLI)
 ├── examples/               # device.yaml examples (greenhouse, drone)
 ├── desktop/                # Oasis Studio desktop app (Tauri 2)
+│   ├── src-tauri/          #   app back end (thin Tauri commands)
+│   └── studio-core/        #   tool registry + MCP server (oasis-studio-mcp)
+├── simulation/             # Python behavioral runtime, emulator wrappers, fixtures
 ├── site/                   # Oasis Studio overview and download pages
 ├── docs/                   # Schema docs, deployment guide, desktop app design
 ├── kicad_bridge/           # Python KiCAD integration tools
@@ -23,6 +26,228 @@ oasis-firmware/
     ├── rpi/                # Original Python RPi toolkit (oasis-grow)
     └── ino/                # Arduino sensor templates (oasis-ino)
 ```
+
+## For AI agents
+
+This section is for an AI agent (Claude Code, Claude Desktop, Cursor, or
+another MCP client) that reads this repository for the first time. Follow
+the steps in order.
+
+### What the platform does
+
+- You describe a device (board, sensors, actuators, control loops) in a
+  `device.yaml` file. Examples are in `examples/`.
+- `oasis-core` (the root crate) validates the file and generates a firmware
+  crate for the board.
+- Oasis Studio (`desktop/`) is a desktop app. It finds boards on USB, makes
+  a flash plan, and runs firmware in a simulator: simavr for Arduino Uno
+  (ATmega328P), Renode for STM32F103.
+- `oasis-studio-mcp` is an MCP (Model Context Protocol) server. It gives an
+  agent the same tools that the app uses. The app and the server call the
+  same Rust functions in `desktop/studio-core`.
+
+### Safety rules
+
+1. No MCP tool writes to a device. No MCP tool runs a flash or sends a
+   command to a board. `flash_plan` only shows the plan.
+2. A write to a device needs a row in the owned-device list. Only a person
+   adds a row, on the Owned devices page of the app. No MCP tool adds a row.
+   `registry_list` only reads the list.
+3. Each change writes one line to the action log, `audit.jsonl` in the data
+   folder. A line has the time, the actor (`user`, `assistant`, or `mcp`),
+   the action, the target, and the result. `audit_tail` reads the log.
+4. External programs run with an argument list. No shell reads the
+   arguments (`desktop/studio-core/src/tools.rs`, `runner.rs`).
+5. `sim_run` runs only a local simulator, one run at a time, with a time
+   limit of not more than 60 simulated seconds.
+
+Do not change these rules in code without a person's review.
+
+### Step 1: install the programs
+
+The MCP server needs Rust only. The other programs are for the desktop
+app, the simulators, and the Arduino build.
+
+| Program | Needed for | macOS | Linux (Ubuntu/Debian) | Windows |
+|---------|------------|-------|-----------------------|---------|
+| Rust (stable, 1.77 or later) | MCP server, app, firmware | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` | same as macOS | `winget install Rustlang.Rustup` |
+| Build packages | serial port listing | `xcode-select --install` | `sudo apt install build-essential pkg-config libudev-dev` | Microsoft C++ Build Tools |
+| Node.js 20 or later | desktop app only | `brew install node` | Node.js 20 or later from nodejs.org (the Ubuntu 22.04 package is too old) | `winget install OpenJS.NodeJS.LTS` |
+| simavr | Arduino Uno simulation | `brew tap osx-cross/avr` then `brew install osx-cross/avr/simavr` | `sudo apt install simavr` | no official build; use WSL 2 and the Linux steps |
+| Renode 1.16.1 | STM32F103 simulation | `renode_1.16.1.dmg` (Intel) or `renode-1.16.1-dotnet.osx-arm64-portable.dmg` (Apple silicon); move Renode.app to `/Applications` | `renode-1.16.1.linux-portable-dotnet.tar.gz`; put the folder on PATH | `renode-1.16.1.setup.exe` |
+| arduino-cli | Arduino build of the simavr fixture | `brew install arduino-cli` | `arduino-cli_<version>_Linux_64bit.tar.gz`; put `arduino-cli` on PATH | `arduino-cli_<version>_Windows_64bit.zip` |
+
+- Renode files: <https://github.com/renode/renode/releases/tag/v1.16.1>.
+- arduino-cli files: <https://github.com/arduino/arduino-cli/releases>.
+- After you install arduino-cli, install the AVR core:
+  `arduino-cli core update-index` and then `arduino-cli core install arduino:avr`.
+- For the STM32 fixture, add the Rust target:
+  `rustup target add thumbv7m-none-eabi`.
+- Linux only: to see board details on USB, add the user to the serial
+  group (`sudo usermod -aG dialout $USER`), then log out and log in.
+- Desktop app packages for Linux and Windows: [docs/STUDIO_RELEASE.md](docs/STUDIO_RELEASE.md).
+
+Open a new shell after the install. Then check the programs:
+
+```bash
+cargo --version
+command -v simavr
+renode --version
+arduino-cli version
+```
+
+On macOS, `renode` is on PATH only if you link it:
+`ln -s /Applications/Renode.app/Contents/MacOS/Renode /usr/local/bin/renode`.
+The MCP server also finds Renode in `/Applications/Renode.app/Contents/MacOS`
+without the link.
+
+### Step 2: build the MCP server
+
+Run from the repository root:
+
+```bash
+cargo build --release --locked --manifest-path desktop/studio-core/Cargo.toml --bin oasis-studio-mcp
+desktop/studio-core/target/release/oasis-studio-mcp --version
+desktop/studio-core/target/release/oasis-studio-mcp --list-tools
+```
+
+The program is `desktop/studio-core/target/release/oasis-studio-mcp`
+(`oasis-studio-mcp.exe` on Windows). Use its absolute path in the client
+configuration below.
+
+### Step 3: register the server with your client
+
+The server uses the stdio transport. The client starts the program and
+sends one JSON-RPC 2.0 message on each line of stdin. The server writes one
+message on each line of stdout, and diagnostic text on stderr. The server
+accepts the MCP protocol versions `2025-06-18`, `2025-03-26`, and
+`2024-11-05`.
+
+Claude Code (run from the repository root):
+
+```bash
+claude mcp add oasis-studio -- "$PWD/desktop/studio-core/target/release/oasis-studio-mcp"
+claude mcp list
+```
+
+`claude mcp list` must show `oasis-studio: ... - ✓ Connected`. The default
+scope is `local` (this folder, this user). Add `--scope user` for all
+folders, or `--scope project` to write `.mcp.json` in this folder.
+
+Claude Desktop: edit `claude_desktop_config.json`, then restart Claude
+Desktop. The file is in `~/Library/Application Support/Claude/` on macOS
+and in `%APPDATA%\Claude\` on Windows.
+
+```json
+{
+  "mcpServers": {
+    "oasis-studio": {
+      "command": "/ABSOLUTE/PATH/oasis-firmware/desktop/studio-core/target/release/oasis-studio-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+Cursor: put the same `mcpServers` object in `.cursor/mcp.json` in the
+project, or in `~/.cursor/mcp.json` for all projects.
+
+Other MCP clients (generic stdio configuration):
+
+| Field | Value |
+|-------|-------|
+| transport | `stdio` |
+| command | absolute path to `oasis-studio-mcp` |
+| args | none, or `--data-dir <dir>` and `--projects-dir <dir>` |
+| env (optional) | `OASIS_STUDIO_DATA_DIR`, `OASIS_STUDIO_PROJECTS_DIR` |
+
+The server uses the same folders as the desktop app, so the app and the
+server share the owned-device list and the action log:
+
+| Folder | macOS | Linux | Windows |
+|--------|-------|-------|---------|
+| data (owned-device list, `audit.jsonl`, `sim-runs/`) | `~/Library/Application Support/io.oasis-x.studio` | `~/.local/share/io.oasis-x.studio` | `%APPDATA%\io.oasis-x.studio` |
+| projects (generated firmware) | `~/Documents/Oasis Studio` | `~/Documents/Oasis Studio` | `Documents\Oasis Studio` |
+
+Give each file path to a tool as an absolute path. A relative path is
+relative to the folder where the client starts the server.
+
+### Tools
+
+Class `observe`: the tool reads only. Class `propose`: the tool prepares a
+change and writes one action-log line with actor `mcp`. No tool writes to
+a device. The tool list is in `desktop/studio-core/src/catalog.rs`. The
+app's assistant panel shows the same list.
+
+| Tool | Class | What it does |
+|------|-------|--------------|
+| `app_info` | observe | Version, OS, data folder, projects folder. |
+| `list_ports` | observe | Serial ports, USB ids, USB serial numbers, board family. Opens no port. |
+| `list_tools` | observe | Installed external programs (cargo, espflash, probe-rs, picotool, mpremote, arduino-cli, avrdude, simavr, renode). |
+| `list_families` | observe | Board families: flash recipe and simulator. |
+| `validate_config` | observe | Validates a `device.yaml` (`yaml` text or `path`). Returns a summary and the errors. |
+| `generate_firmware` | propose | Generates firmware into `<projects>/<device id>/firmware`. Writes no other folder. |
+| `registry_list` | observe | Reads the owned-device list. |
+| `audit_tail` | observe | Reads the newest action-log lines (`limit`, 1 to 1000). |
+| `flash_plan` | propose | Builds a flash plan: tool, argument list, firmware sha256, owned device, blockers. Never runs the flash tool. |
+| `sim_plan` | observe | Checks if a firmware file can run in the simulator for a family. Runs nothing. |
+| `sim_run` | propose | Runs firmware in simavr (`avr_uno`) or Renode (`stm32`) until exit, the time limit (`seconds`, default 5, maximum 60), or a cancel. Returns the exit reason and the last `max_lines` UART lines (default 200). Writes the full UART output to `uart.log` in the run folder. |
+
+`sim_run` sends `notifications/progress` while UART lines arrive if the
+request has `_meta.progressToken`. A `notifications/cancelled` for the
+request stops the run. The result then has `"exit": {"reason": "stopped"}`.
+
+A first session to check the setup:
+
+1. Call `validate_config` with `path` set to the absolute path of
+   `examples/greenhouse-demo.yaml`. The result has `"ok": true`.
+2. Call `list_tools`. Each installed program has a `path`.
+3. Call `audit_tail`. The log has no `mcp` line yet, because steps 1 and 2
+   change nothing.
+
+### Run the tests
+
+Run from the repository root:
+
+```bash
+cargo test --locked --manifest-path desktop/studio-core/Cargo.toml
+```
+
+This command runs the tool handler tests, the MCP protocol tests, and an
+end-to-end test. The end-to-end test starts `oasis-studio-mcp` and sends
+`initialize`, `tools/list`, and `tools/call` over stdio.
+
+The desktop app back end (needs Node.js and the Tauri packages):
+
+```bash
+cd desktop && npm ci && npm run build && cd src-tauri && cargo test --locked
+```
+
+The simulator tests run only when the fixture files exist. Build the
+fixtures, set two variables, and run the `sim` tests. Build the STM32
+fixture from its own folder: its `.cargo/config.toml` sets the target.
+
+```bash
+arduino-cli compile --fqbn arduino:avr:uno --output-dir /tmp/uno simulation/fixtures/avr_uno_serial
+(cd simulation/fixtures/stm32f103_usart && cargo build --release)
+export OASIS_SIM_AVR_ELF=/tmp/uno/avr_uno_serial.ino.elf
+export OASIS_SIM_STM32_ELF="$PWD/simulation/fixtures/stm32f103_usart/target/thumbv7m-none-eabi/release/stm32f103_usart"
+cargo test --locked --manifest-path desktop/studio-core/Cargo.toml sim -- --nocapture
+```
+
+The firmware generator (root crate) and the Python simulation package:
+
+```bash
+cargo test
+cd simulation && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]' && .venv/bin/pytest tests
+```
+
+### Other MCP server in this repository
+
+`simulation/mcp_server.py` is an older, experimental Python MCP server. It
+controls the Python behavioral runtime and the emulator wrappers in
+`simulation/`. It does not write the action log and has no time limit on
+emulator runs. Use `oasis-studio-mcp` for the tools in the table above.
 
 ## Quick Start
 

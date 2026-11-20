@@ -93,3 +93,7 @@ desktop/node_modules/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
 site/node_modules/
+# Oasis Studio tool registry and MCP server
+!desktop/studio-core/Cargo.lock
+!desktop/studio-core/src/bin/
+desktop/studio-core/target/

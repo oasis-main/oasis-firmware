@@ -1,4 +1,5 @@
-# Oasis Studio: build and test the desktop app on macOS, Windows, and Linux.
+# Oasis Studio: build and test the desktop app, the tool registry
+# (desktop/studio-core), and the MCP server on macOS, Windows, and Linux.
 name: studio-ci
 
 on:
@@ -40,10 +41,26 @@ jobs:
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: desktop/src-tauri
+          workspaces: |
+            desktop/src-tauri
+            desktop/studio-core
 
       - run: npm ci
       - run: npm run build
       - name: Back-end tests
         working-directory: desktop/src-tauri
         run: cargo test --locked
+
+      # Tool handlers, MCP protocol, and an end-to-end test that starts
+      # oasis-studio-mcp and sends JSON-RPC over stdio.
+      - name: Tool registry and MCP server tests
+        working-directory: desktop/studio-core
+        run: cargo test --locked
+
+      - name: Build the MCP server
+        working-directory: desktop/studio-core
+        shell: bash
+        run: |
+          cargo build --release --locked --bin oasis-studio-mcp
+          ./target/release/oasis-studio-mcp --version
+          ./target/release/oasis-studio-mcp --list-tools

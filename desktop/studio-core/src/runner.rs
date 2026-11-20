@@ -34,6 +34,17 @@ pub enum Exit {
     Stopped,
 }
 
+impl Exit {
+    /// Short text for the action log: "exited 0", "time limit", "stopped".
+    pub fn describe(&self) -> String {
+        match self {
+            Exit::Exited { code } => format!("exited {}", code.map_or("by signal".into(), |c| c.to_string())),
+            Exit::TimeLimit => "time limit".into(),
+            Exit::Stopped => "stopped".into(),
+        }
+    }
+}
+
 pub struct Spec {
     pub program: PathBuf,
     pub args: Vec<String>,

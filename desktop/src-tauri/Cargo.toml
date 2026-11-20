@@ -15,21 +15,9 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
-serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-serde_yaml = "0.9"
-serialport = "4"
-which = "6"
-sha2 = "0.10"
-chrono = { version = "0.4", features = ["serde"] }
-dirs = "5"
-oasis-core = { path = "../.." }
-
-[target.'cfg(unix)'.dependencies]
-nix = { version = "0.29", features = ["term"] }
-
-[dev-dependencies]
-tempfile = "3"
+# The tool registry. The MCP server (oasis-studio-mcp) uses the same crate.
+oasis-studio-core = { path = "../studio-core" }
 
 [profile.release]
 codegen-units = 1

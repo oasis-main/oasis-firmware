@@ -26,7 +26,7 @@ The same path serves two uses:
 | Board names accepted by validation | `arduino_uno`, `arduino_mega`, `arduino_nano` (`src/config/validation.rs:32`) | `stm32f103`, `stm32f411` |
 | Rust target in `TargetInfo` | none: falls to `""` (`src/codegen/mod.rs:51`) | `thumbv7m-none-eabi`, `thumbv7em-none-eabihf` |
 | Firmware generation | fails: `UnsupportedBoard` (`src/codegen/mcu.rs:57`) | runs, but the output does not build (see section 4) |
-| Flash family in `desktop/src-tauri/boards.yaml` | `avr_uno` (avrdude) | `stm32` (probe-rs) |
+| Flash family in `desktop/studio-core/boards.yaml` | `avr_uno` (avrdude) | `stm32` (probe-rs) |
 | Simulator | simavr (vendored source in `simavr/`, GPL-3.0) | Renode (MIT) |
 | Python wrapper | `simulation/emulators/simavr/wrapper.py` | `simulation/emulators/renode/wrapper.py` |
 | Orchestrator and MCP server | `simulation/emulators/orchestrator.py`, `simulation/mcp_server.py` (`sim_start`, `sim_step`, ...) | same |
@@ -83,7 +83,7 @@ The commands are in `simulation/fixtures/README.md`.
 
 ### Desktop app
 
-- G8. `KNOWN_TOOLS` (`desktop/src-tauri/src/tools.rs:13`) does not list
+- G8. `KNOWN_TOOLS` (`desktop/studio-core/src/tools.rs:13`) does not list
   `simavr` or `renode`. The app cannot report if a simulator is present.
 - G9. `run_with_timeout` in `tools.rs` keeps all output until exit. A
   simulator run needs line-by-line output to the UI. The FW-015 flash runner
@@ -98,7 +98,7 @@ The commands are in `simulation/fixtures/README.md`.
 
 - G11. simavr buffers stdout when stdout is a pipe. The UART text arrives
   only when simavr exits. Fix: the runner gives simavr a pseudo-terminal
-  (pty) for stdout on macOS and Linux (`desktop/src-tauri/src/runner.rs`,
+  (pty) for stdout on macOS and Linux (`desktop/studio-core/src/runner.rs`,
   `simulation/emulators/simavr/wrapper.py`).
 - G12. Renode cannot open a script given as a plain argument when the path
   has a space (error: "Could not tokenize here"). The app data folder on
@@ -129,7 +129,7 @@ flowchart LR
 
 ### 5.1 Board table
 
-Add a `simulate` block to each family in `desktop/src-tauri/boards.yaml`.
+Add a `simulate` block to each family in `desktop/studio-core/boards.yaml`.
 The block uses the same placeholder rules as the flash `args`.
 
 ```yaml
@@ -146,7 +146,7 @@ The block uses the same placeholder rules as the flash `args`.
       accepts: [elf, bin]
 ```
 
-### 5.2 Rust back end (`desktop/src-tauri/src/sim.rs`)
+### 5.2 Rust back end (`desktop/studio-core/src/sim.rs`)
 
 - `sim_plan(family, artifact)` returns a `SimPlan`. The plan has the same
   form as `FlashPlan`: engine, engine path, argument list, artifact SHA-256,

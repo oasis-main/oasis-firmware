@@ -1,0 +1,57 @@
+[
+  {
+    "class": "observe",
+    "name": "app_info",
+    "summary": "Show the version, the OS, and the data and projects folders."
+  },
+  {
+    "class": "observe",
+    "name": "list_ports",
+    "summary": "List connected boards and what each one is."
+  },
+  {
+    "class": "observe",
+    "name": "list_tools",
+    "summary": "Check which flash tools and simulators are installed."
+  },
+  {
+    "class": "observe",
+    "name": "list_families",
+    "summary": "List the board families, flash recipes, and simulators."
+  },
+  {
+    "class": "observe",
+    "name": "validate_config",
+    "summary": "Check a device.yaml and explain each error."
+  },
+  {
+    "class": "propose",
+    "name": "generate_firmware",
+    "summary": "Write firmware for a device.yaml into your projects folder."
+  },
+  {
+    "class": "observe",
+    "name": "registry_list",
+    "summary": "List the owned devices that the app may write to."
+  },
+  {
+    "class": "observe",
+    "name": "audit_tail",
+    "summary": "Read the newest entries of the action log."
+  },
+  {
+    "class": "propose",
+    "name": "flash_plan",
+    "summary": "Prepare a flash. You review the plan and press Flash yourself."
+  },
+  {
+    "class": "observe",
+    "name": "sim_plan",
+    "summary": "Check if a firmware file can run in the simulator for a board family."
+  },
+  {
+    "class": "propose",
+    "name": "sim_run",
+    "summary": "Run firmware in simavr or Renode and read its serial output. You start the run."
+  }
+]

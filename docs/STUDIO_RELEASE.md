@@ -2,7 +2,9 @@
 
 Oasis Studio is the desktop app in `desktop/` (Tauri 2: Rust back end in
 `desktop/src-tauri`, React + Vite front end in `desktop/src`). The back end
-links `oasis-core` (the root crate) directly.
+calls the tool registry in `desktop/studio-core`, which links `oasis-core`
+(the root crate) directly. The MCP server `oasis-studio-mcp` is a binary in
+`desktop/studio-core`.
 
 ## Build on your computer
 
@@ -35,7 +37,8 @@ Rosetta. Use `npm run tauri build -- --target aarch64-apple-darwin` after
 "Browser preview" badge. Use the preview for UI work only. The preview has
 no access to ports, tools, or files.
 
-Tests: `cd desktop/src-tauri && cargo test`.
+Tests: `cd desktop/src-tauri && cargo test --locked` and
+`cd desktop/studio-core && cargo test --locked`.
 
 ## Release
 
@@ -74,7 +77,7 @@ include them.
 
 | Simulator | Family | macOS | Linux | Windows |
 |-----------|--------|-------|-------|---------|
-| simavr | Arduino Uno (ATmega328P) | `brew install simavr` | `sudo apt install simavr` | no official build |
+| simavr | Arduino Uno (ATmega328P) | `brew tap osx-cross/avr`, then `brew install osx-cross/avr/simavr` | `sudo apt install simavr` | no official build |
 | Renode 1.16 | STM32F103 | `renode_<version>.dmg` from the Renode GitHub releases | `renode-<version>.linux-portable-dotnet.tar.gz` | `renode-<version>.setup.exe` |
 
 The app looks for each program on PATH, and on macOS also in
