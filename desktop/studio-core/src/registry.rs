@@ -2,7 +2,8 @@
 //!
 //! Rule: the app writes to a device (command or flash) only when the device
 //! has a row here. The user adds the row and declares ownership. The app
-//! never adds a row by itself.
+//! never adds a row by itself, and the tool catalog (`catalog.rs`) has no
+//! tool that adds a row. Only the Owned devices page calls `Store::add`.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -49,7 +50,8 @@ pub struct NewDevice {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEntry {
     pub at: DateTime<Utc>,
-    /// "user" or "assistant"
+    /// "user" (the app buttons), "assistant" (the in-app chat), or "mcp"
+    /// (an MCP client through `oasis-studio-mcp`).
     pub actor: String,
     pub action: String,
     pub target: String,

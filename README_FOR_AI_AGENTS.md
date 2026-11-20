@@ -1,3 +1,8 @@
+> **Note (2026-11):** This file is an older project overview. Some paths in
+> it are out of date. For setup, the MCP server (`oasis-studio-mcp`), the tool
+> list, and the safety rules, read the "For AI agents" section of
+> [README.md](README.md#for-ai-agents) and [AGENTS.md](AGENTS.md).
+
 # README for AI Agents: Oasis Firmware Project
 
 **Last Updated**: March 10, 2026  

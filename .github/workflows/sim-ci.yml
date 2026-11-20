@@ -1,13 +1,14 @@
 # Simulation: build the fixture firmware and run it in simavr (AVR) and
-# Renode (STM32), through the Python wrappers and the desktop back end.
+# Renode (STM32), through the Python wrappers, the desktop tool registry
+# (desktop/studio-core), and the MCP server.
 name: sim-ci
 
 on:
   pull_request:
-    paths: ["simulation/**", "desktop/src-tauri/**", ".github/workflows/sim-ci.yml"]
+    paths: ["simulation/**", "desktop/studio-core/**", ".github/workflows/sim-ci.yml"]
   push:
     branches: [master]
-    paths: ["simulation/**", "desktop/src-tauri/**", ".github/workflows/sim-ci.yml"]
+    paths: ["simulation/**", "desktop/studio-core/**", ".github/workflows/sim-ci.yml"]
 
 permissions:
   contents: read
@@ -22,10 +23,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: System packages (simavr, Tauri build packages)
+      - name: System packages (simavr; libudev for serial port listing)
         run: |
           sudo apt-get update
-          sudo apt-get install -y simavr libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev
+          sudo apt-get install -y simavr libudev-dev
 
       - name: Renode (portable, checksum checked)
         run: |
@@ -48,7 +49,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: |
-            desktop/src-tauri
+            desktop/studio-core
             simulation/fixtures/stm32f103_usart
 
       - uses: actions/setup-python@v5
@@ -75,10 +76,8 @@ jobs:
           .venv/bin/pip install -e '.[dev]'
           .venv/bin/pytest tests -v -rs
 
-      - name: Desktop back end runs the fixtures
-        working-directory: desktop/src-tauri
-        run: |
-          # Tauri checks at compile time that the front-end folder exists.
-          # This job tests the back end only, so a stub page is enough.
-          mkdir -p ../dist && echo '<!doctype html><title>stub</title>' > ../dist/index.html
-          cargo test --locked "sim::" -- --nocapture
+      # sim:: runs the fixtures through the back end. sim_run runs them
+      # through the tool catalog and over stdio through oasis-studio-mcp.
+      - name: Desktop back end and MCP server run the fixtures
+        working-directory: desktop/studio-core
+        run: cargo test --locked sim -- --nocapture

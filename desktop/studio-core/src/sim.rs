@@ -3,8 +3,11 @@
 //! A simulation touches no hardware, so a run needs no owned-device record.
 //! Each run writes one audit record.
 //!
-//! - simavr prints UART0 lines on stdout in ANSI color. The runner gives
-//!   simavr a pty so that the lines arrive while the firmware runs.
+//! - simavr prints UART0 lines in ANSI green. Newer builds (Homebrew)
+//!   write the lines on stdout; simavr 1.6 (the Ubuntu 22.04 package)
+//!   writes them on stderr. The app reads a green line on either stream as
+//!   UART output. The runner gives simavr a pty for stdout so that stdout
+//!   lines arrive while the firmware runs.
 //! - Renode runs a script that the app writes into a new run folder. The
 //!   script connects the UART to a file. The app reads new bytes from the
 //!   file while Renode runs.
@@ -123,9 +126,11 @@ pub fn renode_script(sim: &Simulate, artifact: &str, uart_out: &str, seconds: f6
     .join("\n"))
 }
 
-/// The UART text in one stdout line from simavr, or None for other output.
+/// The UART text in one output line from simavr, or None for other output.
+/// simavr writes each UART line in green (ESC[32m). simavr 1.6 puts the
+/// color reset at the start of the next line, so a line can start with ESC[0m.
 pub fn simavr_uart_line(raw: &str) -> Option<String> {
-    if !raw.contains("\x1b[") {
+    if !raw.contains("\x1b[32m") {
         return None;
     }
     let mut text = String::with_capacity(raw.len());
@@ -287,9 +292,11 @@ pub fn execute(
         match engine {
             "simavr" => {
                 let uart = send_uart.clone();
-                let on_line = Arc::new(move |stream: Stream, line: String| match (stream, simavr_uart_line(&line)) {
-                    (Stream::Stdout, Some(text)) => uart(text),
-                    _ => send_log(line),
+                // A green line on stdout or stderr is UART output (see the
+                // module comment).
+                let on_line = Arc::new(move |_: Stream, line: String| match simavr_uart_line(&line) {
+                    Some(text) => uart(text),
+                    None => send_log(line),
                 });
                 let spec = Spec { program, args, cwd: Some(run_dir.to_path_buf()), limit, pty_stdout: true };
                 runner::run(&spec, stop, on_line).map_err(|e| e.to_string())
@@ -386,6 +393,9 @@ mod tests {
         assert_eq!(simavr_uart_line("\x1b[32mtick 0..\x1b[0m\r"), Some("tick 0".into()));
         assert_eq!(simavr_uart_line("\x1b[32mno end\x1b[0m"), Some("no end".into()));
         assert_eq!(simavr_uart_line("Loaded 2128 bytes of Flash data at 0"), None);
+        // simavr 1.6 (Ubuntu 22.04) form, on stderr.
+        assert_eq!(simavr_uart_line("\x1b[0m\x1b[32mtick 1.."), Some("tick 1".into()));
+        assert_eq!(simavr_uart_line("\x1b[0m"), None);
     }
 
     #[test]

@@ -1,4 +1,11 @@
-"""MCP Server for Oasis Simulation - Exposes simulation control via Model Context Protocol."""
+"""MCP Server for Oasis Simulation - Exposes simulation control via Model Context Protocol.
+
+Status: experimental. The supported MCP server for this repository is
+`oasis-studio-mcp` (desktop/studio-core). See "For AI agents" in the root
+README.md. This server stays for the Python behavioral runtime and the
+emulator wrappers, which `oasis-studio-mcp` does not cover. This server does
+not write the Oasis Studio action log and has no time limit on emulator runs.
+"""
 
 import json
 import sys
@@ -803,8 +810,13 @@ def run_stdio_server():
     server = OasisSimulationMCP(component_library)
     
     for line in sys.stdin:
+        if not line.strip():
+            continue
         try:
             request = json.loads(line.strip())
+            # JSON-RPC 2.0: a notification (no "id") gets no response.
+            if isinstance(request, dict) and "id" not in request:
+                continue
             response = server.handle_request(request)
             print(json.dumps(response), flush=True)
         except json.JSONDecodeError:

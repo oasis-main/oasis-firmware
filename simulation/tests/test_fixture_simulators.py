@@ -39,6 +39,14 @@ def test_parse_uart_line_strips_color_and_crlf_marker():
     assert parse_uart_line("Loaded 2128 bytes of Flash data at 0\n") is None
 
 
+def test_parse_uart_line_reads_simavr_1_6_stderr_form():
+    # simavr 1.6 (Ubuntu 22.04) writes the color reset at the start of the
+    # next line: "ESC[32mtick 0..\nESC[0mESC[32mtick 1..\nESC[0m".
+    assert parse_uart_line("\x1b[32mtick 0..\n") == "tick 0"
+    assert parse_uart_line("\x1b[0m\x1b[32mtick 1..\n") == "tick 1"
+    assert parse_uart_line("\x1b[0m") is None
+
+
 def test_simavr_command_is_an_argument_list(tmp_path):
     fw = tmp_path / "fw with space.elf"
     fw.write_bytes(b"\x7fELF")
