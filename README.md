@@ -130,7 +130,7 @@ claude mcp add oasis-studio -- "$PWD/desktop/studio-core/target/release/oasis-st
 claude mcp list
 ```
 
-`claude mcp list` must show `oasis-studio: ... - ✓ Connected`. The default
+`claude mcp list` must show `oasis-studio: <path> - ✔ Connected`. The default
 scope is `local` (this folder, this user). Add `--scope user` for all
 folders, or `--scope project` to write `.mcp.json` in this folder.
 
