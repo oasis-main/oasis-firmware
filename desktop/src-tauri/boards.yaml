@@ -51,8 +51,19 @@ families:
     baud: 115200
     chip: STM32F103C8
     args: ["download", "--chip", "{chip}", "{artifact}"]
+    simulate:
+      engine: renode
+      platform: platforms/cpus/stm32f103.repl
+      uart: usart1
+      accepts: [elf]
+      elf_machine: 40
   - family: avr_uno
     label: "Arduino Uno / ATmega328P (avrdude)"
     tool: avrdude
     baud: 115200
     args: ["-p", "atmega328p", "-c", "arduino", "-P", "{port}", "-b", "{baud}", "-U", "flash:w:{artifact}:i"]
+    simulate:
+      engine: simavr
+      args: ["-m", "atmega328p", "-f", "16000000", "{artifact}"]
+      accepts: [elf, hex]
+      elf_machine: 83

@@ -88,8 +88,12 @@ See `legacy/rpi/README.md` for full documentation.
 |----------|-----------|------------|------------|
 | ESP32    | Rust (embassy) | Wokwi | espflash, OTA |
 | RPi      | Rust (tokio) | mock_gpio | SSH, systemd |
-| Arduino  | C++ templates | - | arduino-cli |
-| STM32    | Rust (embassy) | - | probe-rs |
+| Arduino  | C++ templates | simavr (Uno / ATmega328P) | arduino-cli |
+| STM32    | Rust (embassy) | Renode (STM32F103) | probe-rs |
+
+Oasis Studio runs Arduino and STM32 firmware files in the simulators on the
+Simulate page. Firmware generation for these two families is not complete
+yet; see [docs/SIMULATION_PATHS_AVR_STM32.md](docs/SIMULATION_PATHS_AVR_STM32.md).
 
 ## Contributing
 
@@ -106,7 +110,7 @@ The current architecture separates concerns across three layers:
 | Build | `oasis-build` CLI | Rust | YAML → firmware code generation |
 | Runtime (RPi) | Launcher + app folder | Rust + egui | Sandboxed app execution via systemd |
 | Runtime (MCU) | `oasis-mcu` | C++ (Arduino) | Compile-time app composition with menu system |
-| Desktop | Oasis Studio (`desktop/`) | Rust + Tauri 2 + React | Design, generate, board detection, owned-device list, flash plan |
+| Desktop | Oasis Studio (`desktop/`) | Rust + Tauri 2 + React | Design, generate, simulate (simavr, Renode), board detection, owned-device list, flash plan |
 | Desktop (spec) | `oasis-manager` | Rust + egui | SD flashing, Arduino flashing, app repository |
 | Simulation | BehavioralRuntime | Python | Hardware-in-the-loop testing, MCP server |
 

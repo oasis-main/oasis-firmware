@@ -7,6 +7,8 @@ const TOOLS: { name: string; cls: "observe" | "propose"; text: string }[] = [
   { name: "list_ports", cls: "observe", text: "List connected boards and what each one is." },
   { name: "list_tools", cls: "observe", text: "Check which flash tools are installed." },
   { name: "flash_plan", cls: "propose", text: "Prepare a flash. You review the plan and press Flash yourself." },
+  { name: "sim_plan", cls: "observe", text: "Check if a firmware file can run in the simulator for a board family." },
+  { name: "sim_run", cls: "propose", text: "Run firmware in simavr or Renode and read its serial output. You start the run." },
 ];
 
 export function AssistantPanel() {

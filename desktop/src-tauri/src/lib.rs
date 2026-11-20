@@ -8,16 +8,22 @@ mod device;
 mod flash;
 mod ports;
 mod registry;
+mod runner;
+mod sim;
 mod tools;
 
 use registry::{AuditEntry, NewDevice, OwnedDevice, Store};
 use serde::Serialize;
 use std::path::PathBuf;
-use tauri::{Manager, State};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 pub struct AppState {
     store: Store,
     projects_dir: PathBuf,
+    /// The active simulation run: run id and its stop flag. One run at a time.
+    sim_run: Mutex<Option<(String, Arc<AtomicBool>)>>,
 }
 
 #[derive(Serialize)]
@@ -96,6 +102,68 @@ fn flash_plan(request: flash::PlanRequest, state: State<'_, AppState>) -> flash:
     flash::plan(&request, &state.store)
 }
 
+#[tauri::command]
+async fn sim_plan(request: sim::SimRequest) -> Result<sim::SimPlan, String> {
+    tauri::async_runtime::spawn_blocking(move || sim::plan(&request)).await.map_err(|e| e.to_string())
+}
+
+/// Start a simulation run. Output arrives as "sim://line" events; the end
+/// arrives as one "sim://done" event. Returns the run id.
+#[tauri::command]
+async fn sim_start(request: sim::SimRequest, app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {
+    let plan = tauri::async_runtime::spawn_blocking(move || sim::plan(&request)).await.map_err(|e| e.to_string())?;
+    if !plan.blockers.is_empty() {
+        return Err(plan.blockers.join(" "));
+    }
+    let run_id = chrono::Local::now().format("%Y%m%d-%H%M%S-%3f").to_string();
+    let stop = Arc::new(AtomicBool::new(false));
+    {
+        let mut active = state.sim_run.lock().map_err(|e| e.to_string())?;
+        if let Some((id, _)) = active.as_ref() {
+            return Err(format!("Simulation {id} is still running. Stop it first."));
+        }
+        *active = Some((run_id.clone(), stop.clone()));
+    }
+    let run_dir = state.store.dir().join("sim-runs").join(&run_id);
+    let id = run_id.clone();
+    std::thread::spawn(move || {
+        let emitter = app.clone();
+        let emit = Arc::new(move |line: sim::SimLine| {
+            let _ = emitter.emit("sim://line", line);
+        });
+        let done = sim::execute(&plan, &id, &run_dir, stop, emit);
+        let state = app.state::<AppState>();
+        let sha = plan.artifact_sha256.as_deref().unwrap_or("-");
+        let target = format!("{} {} sha256:{}", plan.family, plan.engine.as_deref().unwrap_or("-"), &sha[..sha.len().min(16)]);
+        let reason = match &done.exit {
+            runner::Exit::Exited { code } => format!("exited {}", code.map_or("by signal".into(), |c| c.to_string())),
+            runner::Exit::TimeLimit => "time limit".into(),
+            runner::Exit::Stopped => "stopped".into(),
+        };
+        let result = match &done.error {
+            Some(e) => format!("error: {e}"),
+            None => format!("{reason}; {} UART lines", done.uart_lines),
+        };
+        state.store.audit("user", "sim.run", &target, &result);
+        if let Ok(mut active) = state.sim_run.lock() {
+            *active = None;
+        }
+        let _ = app.emit("sim://done", done);
+    });
+    Ok(run_id)
+}
+
+#[tauri::command]
+fn sim_stop(state: State<'_, AppState>) -> bool {
+    match state.sim_run.lock().ok().and_then(|a| a.as_ref().map(|(_, s)| s.clone())) {
+        Some(stop) => {
+            stop.store(true, Ordering::SeqCst);
+            true
+        }
+        None => false,
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -106,7 +174,7 @@ pub fn run() {
                 .document_dir()
                 .map(|d| d.join("Oasis Studio"))
                 .unwrap_or_else(|_| data_dir.join("projects"));
-            app.manage(AppState { store: Store::new(data_dir), projects_dir });
+            app.manage(AppState { store: Store::new(data_dir), projects_dir, sim_run: Mutex::new(None) });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -121,6 +189,9 @@ pub fn run() {
             registry_remove,
             audit_tail,
             flash_plan,
+            sim_plan,
+            sim_start,
+            sim_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Oasis Studio");

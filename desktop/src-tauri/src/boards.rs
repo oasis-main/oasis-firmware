@@ -32,6 +32,29 @@ pub struct Family {
     #[serde(default)]
     pub chip: Option<String>,
     pub args: Vec<String>,
+    /// How to run firmware for this family in a simulator. None: no simulator yet.
+    #[serde(default)]
+    pub simulate: Option<Simulate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Simulate {
+    /// Program name: "simavr" or "renode".
+    pub engine: String,
+    /// simavr: argument list ({artifact} is replaced).
+    #[serde(default)]
+    pub args: Vec<String>,
+    /// Renode: platform description, relative to the Renode install.
+    #[serde(default)]
+    pub platform: Option<String>,
+    /// Renode: UART peripheral to capture.
+    #[serde(default)]
+    pub uart: Option<String>,
+    /// Accepted firmware kinds: elf, hex, bin.
+    pub accepts: Vec<String>,
+    /// Required ELF machine (40 = ARM, 83 = AVR).
+    #[serde(default)]
+    pub elf_machine: Option<u16>,
 }
 
 #[derive(Debug, Deserialize)]

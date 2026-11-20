@@ -18,6 +18,8 @@ pub const KNOWN_TOOLS: &[(&str, &str, &str)] = &[
     ("mpremote", "--version", "MicroPython board tool"),
     ("arduino-cli", "version", "Arduino build and upload tool"),
     ("avrdude", "-?", "AVR flash tool"),
+    ("simavr", "", "AVR simulator (Arduino Uno)"),
+    ("renode", "--version", "STM32 simulator"),
 ];
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,6 +85,10 @@ pub fn search_path() -> String {
     for d in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"] {
         dirs.push(PathBuf::from(d));
     }
+    // The Renode .dmg installs the program inside the app bundle.
+    if cfg!(target_os = "macos") {
+        dirs.push(PathBuf::from("/Applications/Renode.app/Contents/MacOS"));
+    }
     std::env::join_paths(dirs).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
@@ -95,9 +101,10 @@ fn first_line(s: &str) -> Option<String> {
     s.lines().map(str::trim).find(|l| !l.is_empty()).map(|l| l.chars().take(120).collect())
 }
 
+/// An empty `version_arg` means the tool has no version flag (simavr).
 pub fn status_of(name: &str, version_arg: &str, purpose: &str) -> ToolStatus {
     let path = find(name);
-    let version = path.as_ref().and_then(|p| {
+    let version = path.as_ref().filter(|_| !version_arg.is_empty()).and_then(|p| {
         let out = run_with_timeout(p, &[version_arg], Duration::from_secs(5)).ok()?;
         if out.timed_out {
             return Some("no answer in 5 s".into());

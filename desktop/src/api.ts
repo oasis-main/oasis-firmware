@@ -5,6 +5,7 @@
 // can be checked without a desktop build. Sample data never reaches a device.
 
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 export type Confidence = "exact" | "bridge" | "unknown";
 
@@ -15,7 +16,14 @@ export interface DetectedPort {
   family: string | null; confidence: Confidence; label: string | null;
 }
 export interface ToolStatus { name: string; purpose: string; path: string | null; version: string | null }
-export interface Family { family: string; label: string; tool: string; baud: number; chip?: string | null; args: string[] }
+export interface Simulate {
+  engine: string; args: string[]; platform?: string | null; uart?: string | null;
+  accepts: string[]; elf_machine?: number | null;
+}
+export interface Family {
+  family: string; label: string; tool: string; baud: number; chip?: string | null; args: string[];
+  simulate?: Simulate | null;
+}
 export interface ConfigSummary {
   id: string; name: string; platform: string; model: string; rust_target: string;
   sensors: number; actuators: number; control_loops: number;
@@ -38,6 +46,15 @@ export interface FlashPlan {
   artifact: string; artifact_sha256: string | null; owned_device: string | null; blockers: string[];
 }
 
+export interface SimRequest { family: string; artifact: string; seconds: number }
+export interface SimPlan {
+  family: string; engine: string | null; engine_path: string | null; args: string[]; script: string | null;
+  artifact: string; artifact_kind: string | null; artifact_sha256: string | null; seconds: number; blockers: string[];
+}
+export interface SimLine { run_id: string; kind: "uart" | "log"; text: string }
+export type SimExit = { reason: "exited"; code: number | null } | { reason: "time_limit" } | { reason: "stopped" };
+export interface SimDone { run_id: string; exit: SimExit; uart_lines: number; truncated: boolean; error: string | null }
+
 export const isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 // ---------------------------------------------------------------- preview data
@@ -52,8 +69,56 @@ const log = (action: string, target: string, result: string) =>
 const FAMILIES: Family[] = [
   { family: "esp32", label: "ESP32 (espflash)", tool: "espflash", baud: 115200, args: ["flash", "--port", "{port}", "{artifact}"] },
   { family: "rp2040", label: "RP2040 (picotool)", tool: "picotool", baud: 115200, args: ["load", "-x", "{artifact}"] },
-  { family: "stm32", label: "STM32 over a debug probe (probe-rs)", tool: "probe-rs", baud: 115200, chip: "STM32F103C8", args: ["download", "--chip", "{chip}", "{artifact}"] },
+  { family: "stm32", label: "STM32 over a debug probe (probe-rs)", tool: "probe-rs", baud: 115200, chip: "STM32F103C8", args: ["download", "--chip", "{chip}", "{artifact}"],
+    simulate: { engine: "renode", args: [], platform: "platforms/cpus/stm32f103.repl", uart: "usart1", accepts: ["elf"], elf_machine: 40 } },
+  { family: "avr_uno", label: "Arduino Uno / ATmega328P (avrdude)", tool: "avrdude", baud: 115200, args: ["-p", "atmega328p", "-c", "arduino", "-P", "{port}", "-b", "{baud}", "-U", "flash:w:{artifact}:i"],
+    simulate: { engine: "simavr", args: ["-m", "atmega328p", "-f", "16000000", "{artifact}"], accepts: ["elf", "hex"], elf_machine: 83 } },
 ];
+
+// Browser preview: simulation events go through this target instead of Tauri.
+const previewEvents = new EventTarget();
+let previewRun: number | null = null;
+
+function previewSimPlan(r: SimRequest): SimPlan {
+  const fam = FAMILIES.find((f) => f.family === r.family);
+  const blockers: string[] = [];
+  if (!fam?.simulate) blockers.push(`The "${r.family}" family has no simulator yet.`);
+  if (!r.artifact.trim()) blockers.push("Choose a firmware file.");
+  const sim = fam?.simulate;
+  return {
+    family: r.family, engine: sim?.engine ?? null, engine_path: sim ? `/sample/bin/${sim.engine}` : null,
+    args: sim?.engine === "simavr" ? sim.args.map((a) => a.replace("{artifact}", r.artifact))
+      : ["--disable-xwt", "--plain", "-e", 'include "{run_dir}/run.resc"'],
+    script: sim?.engine === "renode"
+      ? `mach create "sim"\nmachine LoadPlatformDescription @${sim.platform}\nsysbus LoadELF "${r.artifact}"\nsysbus.${sim.uart} CreateFileBackend "{run_dir}/uart.txt" true\nemulation RunFor "${r.seconds}"\nquit\n`
+      : null,
+    artifact: r.artifact, artifact_kind: "elf", artifact_sha256: null, seconds: r.seconds, blockers,
+  };
+}
+
+function previewSimStart(r: SimRequest): string {
+  const plan = previewSimPlan(r);
+  if (plan.blockers.length) throw new Error(plan.blockers.join(" "));
+  if (previewRun !== null) throw new Error("A simulation is still running. Stop it first.");
+  const run_id = `preview-${Date.now()}`;
+  const send = (kind: "uart" | "log", text: string) =>
+    previewEvents.dispatchEvent(new CustomEvent("line", { detail: { run_id, kind, text } satisfies SimLine }));
+  const finish = (exit: SimExit, uart_lines: number) => {
+    if (previewRun !== null) clearInterval(previewRun);
+    previewRun = null;
+    log("sim.run", `${r.family} ${plan.engine}`, `${exit.reason}; ${uart_lines} UART lines`);
+    previewEvents.dispatchEvent(new CustomEvent("done", { detail: { run_id, exit, uart_lines, truncated: false, error: null } satisfies SimDone }));
+  };
+  send("log", "Browser preview: sample output. The desktop app runs the real simulator.");
+  let n = 0;
+  previewRun = window.setInterval(() => {
+    send("uart", r.family === "stm32" ? "oasis f103 hello" : `tick ${n}`);
+    n += 1;
+    if (r.family === "stm32" || n >= 6) finish({ reason: "exited", code: 0 }, n);
+  }, 300);
+  previewEvents.addEventListener("stop", () => finish({ reason: "stopped" }, n), { once: true });
+  return run_id;
+}
 
 async function previewCall<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   await new Promise((r) => setTimeout(r, 150));
@@ -70,6 +135,8 @@ async function previewCall<T>(cmd: string, args: Record<string, unknown>): Promi
         { name: "cargo", purpose: "Rust build tool (generated firmware)", path: "/sample/bin/cargo", version: "cargo 1.93.1" },
         { name: "espflash", purpose: "ESP32 flash tool", path: null, version: null },
         { name: "probe-rs", purpose: "Debug-probe flash and log tool (STM32, RP2040)", path: null, version: null },
+        { name: "simavr", purpose: "AVR simulator (Arduino Uno)", path: "/sample/bin/simavr", version: null },
+        { name: "renode", purpose: "STM32 simulator", path: null, version: null },
       ] as T;
     case "list_families":
       return FAMILIES as T;
@@ -110,6 +177,13 @@ async function previewCall<T>(cmd: string, args: Record<string, unknown>): Promi
         artifact: r.artifact, artifact_sha256: null, owned_device: owned?.name ?? null, blockers,
       } as T;
     }
+    case "sim_plan":
+      return previewSimPlan(args.request as SimRequest) as T;
+    case "sim_start":
+      return previewSimStart(args.request as SimRequest) as T;
+    case "sim_stop":
+      previewEvents.dispatchEvent(new Event("stop"));
+      return (previewRun !== null) as T;
   }
   throw new Error(`unknown command ${cmd}`);
 }
@@ -130,7 +204,24 @@ export const api = {
   registryRemove: (id: string) => call<void>("registry_remove", { id }),
   auditTail: (limit = 200) => call<AuditEntry[]>("audit_tail", { limit }),
   flashPlan: (request: PlanRequest) => call<FlashPlan>("flash_plan", { request }),
+  simPlan: (request: SimRequest) => call<SimPlan>("sim_plan", { request }),
+  simStart: (request: SimRequest) => call<string>("sim_start", { request }),
+  simStop: () => call<boolean>("sim_stop"),
 };
+
+/** Subscribe to simulation output. Returns a function that ends the subscription. */
+export async function onSim(onLine: (l: SimLine) => void, onDone: (d: SimDone) => void): Promise<() => void> {
+  if (isDesktop) {
+    const a = await listen<SimLine>("sim://line", (e) => onLine(e.payload));
+    const b = await listen<SimDone>("sim://done", (e) => onDone(e.payload));
+    return () => { a(); b(); };
+  }
+  const l = (e: Event) => onLine((e as CustomEvent<SimLine>).detail);
+  const d = (e: Event) => onDone((e as CustomEvent<SimDone>).detail);
+  previewEvents.addEventListener("line", l);
+  previewEvents.addEventListener("done", d);
+  return () => { previewEvents.removeEventListener("line", l); previewEvents.removeEventListener("done", d); };
+}
 
 export function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);

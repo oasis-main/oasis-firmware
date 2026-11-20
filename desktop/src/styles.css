@@ -89,3 +89,6 @@ pre.box { background: #0e1318; border: 1px solid var(--line); border-radius: 6px
 
 .error { color: var(--bad); background: #2a1716; border: 1px solid #5a2a26; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
 .notice { color: var(--text); background: #16261f; border: 1px solid #23503d; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+
+.sim-console { max-height: 360px; min-height: 120px; }
+.sim-console div { white-space: pre-wrap; word-break: break-all; }

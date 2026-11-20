@@ -1,0 +1,7 @@
+# Renode script for the STM32F103 fixture. $elf and $out are set with -e, then the script is included with -e "include @<this file>".
+mach create "f103"
+machine LoadPlatformDescription @platforms/cpus/stm32f103.repl
+sysbus LoadELF $elf
+sysbus.usart1 CreateFileBackend $out true
+emulation RunFor "0.2"
+quit

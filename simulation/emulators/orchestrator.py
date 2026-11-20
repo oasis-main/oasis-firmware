@@ -220,7 +220,8 @@ class EmulatorOrchestrator:
                 signal_name = f"{mapping.component_id}.{mapping.signal_name}"
                 signal = self._signal_bus.get(signal_name)
                 
-                if signal and hasattr(self._emulator, 'set_gpio'):
+                if signal and getattr(self._emulator, 'supports_gpio_input', True) \
+                        and hasattr(self._emulator, 'set_gpio'):
                     value = signal.value > 0.5  # Threshold for digital
                     self._emulator.set_gpio(mapping.mcu_port, mapping.mcu_pin, value)
     
