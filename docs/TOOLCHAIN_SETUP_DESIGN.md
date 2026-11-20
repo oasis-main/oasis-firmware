@@ -38,10 +38,11 @@ these errors on purpose:
 ## 3. One source of truth: `toolchains.yaml`
 
 Today the tool list is the `KNOWN_TOOLS` constant in
-`desktop/src-tauri/src/tools.rs:13`. W1 replaces the constant with a data
-file, `desktop/src-tauri/toolchains.yaml`, in the same style as
-`boards.yaml`. The Hardware page, the wizard, the blockers, the
-assistant, and the guide all use this file.
+`desktop/studio-core/src/tools.rs:13`. W1 replaces the constant with a data
+file, `desktop/studio-core/toolchains.yaml`, in the same style as
+`desktop/studio-core/boards.yaml`. The Hardware page, the wizard, the
+blockers, the in-app assistant, the MCP server (`oasis-studio-mcp`), and
+the guide all use this file.
 
 ```yaml
 tools:
@@ -139,8 +140,9 @@ flowchart TD
 
 The Simulate and Flash pages show blockers now (for example "Renode not
 found"). In W1, each blocker for a missing tool gets a link to that tool's
-card. The assistant tool `sim_plan` returns the same link, so that an
-assistant can tell the user the exact step.
+card. The tools `list_tools`, `flash_plan`, and `sim_plan` (in the in-app
+assistant and in `oasis-studio-mcp`) return the same tool id and steps, so
+that an assistant can tell the user the exact step.
 
 ## 5. App-managed download (W3, option C)
 
@@ -188,7 +190,7 @@ Rules:
 | Phase | Work | Done when |
 |-------|------|-----------|
 | W0 (done) | [INSTALL_TOOLCHAINS.md](INSTALL_TOOLCHAINS.md): what each work needs, why, and the steps for macOS, Windows, and Linux. | The guide is in the repository. |
-| W1 | `toolchains.yaml` replaces `KNOWN_TOOLS`. Extra search paths (the Arduino core avrdude, Renode). Hardware page shows purpose, size, and steps for this system. Blockers link to the tool card. The data file test. | On this Mac, the Hardware page finds avrdude in the Arduino core folder. Each blocker for a missing tool shows the steps for this system. |
+| W1 | `desktop/studio-core/toolchains.yaml` replaces `KNOWN_TOOLS`. Extra search paths (the Arduino core avrdude, Renode). Hardware page shows purpose, size, and steps for this system. Blockers link to the tool card. The data file test. | On this Mac, the Hardware page finds avrdude in the Arduino core folder. Each blocker for a missing tool shows the steps for this system. |
 | W2 | Wizard: first-start question, work selection, tool cards, summary. Checks for Homebrew, winget, Linux distribution, and serial group. | On a clean macOS user account, a Windows 11 VM, and an Ubuntu 24.04 VM, a tester follows only the wizard and gets one passing Simulate run (STM32F103 on all three; Uno on macOS and Linux). |
 | W3 | "Install for me" for the tools in section 5.1 with status "yes". | The same three systems install arduino-cli and Renode (Linux) from the app. A changed SHA-256 value makes the install fail with a clear message. |
 
@@ -197,5 +199,6 @@ Rules:
 - On this Mac, arduino-cli installed avrdude 6.3.0-arduino17 in
   `~/Library/Arduino15/packages/arduino/tools/avrdude/6.3.0-arduino17/bin/`.
   avrdude is not on PATH. The Hardware page shows avrdude as missing.
-  The Arduino Uno flash plan is blocked for the same reason. W1 fixes this
-  with the extra search path.
+  The Arduino Uno flash plan is blocked for the same reason
+  (`desktop/studio-core/src/flash.rs:76` uses the same lookup). W1 fixes
+  this with the extra search path.
