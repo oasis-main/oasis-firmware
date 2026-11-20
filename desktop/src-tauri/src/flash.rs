@@ -48,7 +48,7 @@ pub fn substitute(template: &[String], port: &str, baud: u32, artifact: &str, ch
         .collect()
 }
 
-fn sha256_file(p: &Path) -> Option<String> {
+pub(crate) fn sha256_file(p: &Path) -> Option<String> {
     let bytes = std::fs::read(p).ok()?;
     let digest = Sha256::digest(&bytes);
     Some(digest.iter().map(|b| format!("{b:02x}")).collect())

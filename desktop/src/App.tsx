@@ -5,13 +5,14 @@ import { Hardware } from "./views/Hardware";
 import { Design } from "./views/Design";
 import { Devices } from "./views/Devices";
 import { Flash } from "./views/Flash";
+import { Simulate } from "./views/Simulate";
 import { Activity } from "./views/Activity";
 import icon from "../app-icon.svg";
 
-export type ViewId = "hardware" | "design" | "devices" | "flash" | "activity";
+export type ViewId = "hardware" | "design" | "simulate" | "devices" | "flash" | "activity";
 
 const NAV: { group: string; items: { id: ViewId; label: string }[] }[] = [
-  { group: "Build", items: [{ id: "design", label: "Design" }, { id: "flash", label: "Flash" }] },
+  { group: "Build", items: [{ id: "design", label: "Design" }, { id: "simulate", label: "Simulate" }, { id: "flash", label: "Flash" }] },
   { group: "Reach", items: [{ id: "hardware", label: "Hardware" }, { id: "devices", label: "Owned devices" }] },
   { group: "Record", items: [{ id: "activity", label: "Activity log" }] },
 ];
@@ -58,6 +59,7 @@ export function App() {
         <main className="view">
           {view === "hardware" && <Hardware onFlash={toFlash} onAdd={() => setView("devices")} />}
           {view === "design" && <Design info={info} />}
+          {view === "simulate" && <Simulate />}
           {view === "devices" && <Devices />}
           {view === "flash" && <Flash port={flashPort} />}
           {view === "activity" && <Activity info={info} />}

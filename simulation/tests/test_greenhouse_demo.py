@@ -41,7 +41,7 @@ class TestGreenhouseDemo:
     @pytest.fixture
     def device_config(self):
         """Load the greenhouse demo device.yaml."""
-        config_path = Path(__file__).parent.parent.parent.parent / "oasis-core" / "examples" / "greenhouse-demo.yaml"
+        config_path = Path(__file__).parent.parent.parent / "examples" / "greenhouse-demo.yaml"
         with open(config_path) as f:
             return yaml.safe_load(f)
     

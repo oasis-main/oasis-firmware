@@ -67,6 +67,21 @@ Tests: `cd desktop/src-tauri && cargo test`.
 - Auto-update is off. The Tauri updater needs a signing key pair and a
   published `latest.json`. Add the updater after the first signed release.
 
+## Simulators
+
+The Simulate page uses programs that the user installs. The app does not
+include them.
+
+| Simulator | Family | macOS | Linux | Windows |
+|-----------|--------|-------|-------|---------|
+| simavr | Arduino Uno (ATmega328P) | `brew install simavr` | `sudo apt install simavr` | no official build |
+| Renode 1.16 | STM32F103 | `renode_<version>.dmg` from the Renode GitHub releases | `renode-<version>.linux-portable-dotnet.tar.gz` | `renode-<version>.setup.exe` |
+
+The app looks for each program on PATH, and on macOS also in
+`/Applications/Renode.app/Contents/MacOS`. The Hardware page shows what it
+found. Each run uses a new folder in the app data folder:
+`sim-runs/<run id>/`.
+
 ## Linux serial access
 
 On Linux, a user needs serial-port permission to see board details and to

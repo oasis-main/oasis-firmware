@@ -1,0 +1,84 @@
+# Simulation: build the fixture firmware and run it in simavr (AVR) and
+# Renode (STM32), through the Python wrappers and the desktop back end.
+name: sim-ci
+
+on:
+  pull_request:
+    paths: ["simulation/**", "desktop/src-tauri/**", ".github/workflows/sim-ci.yml"]
+  push:
+    branches: [master]
+    paths: ["simulation/**", "desktop/src-tauri/**", ".github/workflows/sim-ci.yml"]
+
+permissions:
+  contents: read
+
+env:
+  RENODE_VERSION: "1.16.1"
+  RENODE_SHA256: "00e113cdbd0f5354cf2f64bbe3f5a070d8958409542fca66e45ac97d982938c0"
+
+jobs:
+  simulators:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System packages (simavr, Tauri build packages)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y simavr libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev
+
+      - name: Renode (portable, checksum checked)
+        run: |
+          f="renode-${RENODE_VERSION}.linux-portable-dotnet.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$f" "https://github.com/renode/renode/releases/download/v${RENODE_VERSION}/$f"
+          echo "${RENODE_SHA256}  $RUNNER_TEMP/$f" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/renode"
+          tar -xzf "$RUNNER_TEMP/$f" -C "$RUNNER_TEMP/renode" --strip-components=1
+          echo "$RUNNER_TEMP/renode" >> "$GITHUB_PATH"
+
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Arduino AVR core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7m-none-eabi
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            desktop/src-tauri
+            simulation/fixtures/stm32f103_usart
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tool versions
+        run: |
+          which simavr renode arduino-cli
+          renode --version
+          arduino-cli version
+
+      - name: Build fixtures
+        run: |
+          arduino-cli compile --fqbn arduino:avr:uno --output-dir "$RUNNER_TEMP/uno" simulation/fixtures/avr_uno_serial
+          (cd simulation/fixtures/stm32f103_usart && cargo build --release)
+          echo "OASIS_SIM_AVR_ELF=$RUNNER_TEMP/uno/avr_uno_serial.ino.elf" >> "$GITHUB_ENV"
+          echo "OASIS_SIM_STM32_ELF=$GITHUB_WORKSPACE/simulation/fixtures/stm32f103_usart/target/thumbv7m-none-eabi/release/stm32f103_usart" >> "$GITHUB_ENV"
+
+      - name: Python simulation tests
+        working-directory: simulation
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -e '.[dev]'
+          .venv/bin/pytest tests -v -rs
+
+      - name: Desktop back end runs the fixtures
+        working-directory: desktop/src-tauri
+        run: |
+          # Tauri checks at compile time that the front-end folder exists.
+          # This job tests the back end only, so a stub page is enough.
+          mkdir -p ../dist && echo '<!doctype html><title>stub</title>' > ../dist/index.html
+          cargo test --locked "sim::" -- --nocapture
