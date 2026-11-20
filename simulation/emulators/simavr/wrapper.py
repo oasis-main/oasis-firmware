@@ -2,19 +2,22 @@
 
 The stock `simavr` program:
 - loads an .elf or .hex firmware image;
-- prints UART0 output on stdout, one line at a time, wrapped in ANSI color
-  codes, with CR/LF shown as ".." at the end of the line;
-- prints load messages ("Loaded N bytes ...") on stderr;
-- buffers stdout when stdout is a pipe, so UART text arrives only at exit.
-  On macOS and Linux this wrapper gives simavr a pseudo-terminal (pty) for
-  stdout, so each UART line arrives when the firmware sends it;
+- prints UART0 output one line at a time in ANSI green (ESC[32m), with
+  CR/LF shown as ".." at the end of the line. simavr 1.6 (the Ubuntu
+  22.04 package) writes the UART lines on stderr and the load messages
+  ("Loaded N bytes ...") on stdout. Newer builds (Homebrew) write the UART
+  lines on stdout and the load messages on stderr. This wrapper reads a
+  green line on either stream as UART output;
+- buffers stdout when stdout is a pipe, so stdout text arrives only at
+  exit. On macOS and Linux this wrapper gives simavr a pseudo-terminal
+  (pty) for stdout, so each stdout line arrives when simavr writes it;
 - does not read stdin. There is no input channel for GPIO, UART, or
   interrupts. Input needs a simavr board harness written in C against
   libsimavr (planned, see docs/SIMULATION_PATHS_AVR_STM32.md phase S3).
 
 Prerequisites:
-    brew install simavr  # macOS
-    apt install simavr   # Ubuntu/Debian
+    brew tap osx-cross/avr && brew install osx-cross/avr/simavr  # macOS
+    apt install simavr                                            # Ubuntu/Debian
 """
 
 from __future__ import annotations
@@ -32,6 +35,8 @@ from pathlib import Path
 from typing import Callable, Optional
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
+# simavr writes each UART line in green.
+_UART_COLOR = "\x1b[32m"
 
 
 class AvrMcu(Enum):
@@ -67,10 +72,11 @@ class SimavrConfig:
 def parse_uart_line(raw: str) -> Optional[str]:
     """Return the UART text in one stdout line from simavr, or None.
 
-    simavr colors each UART line. A line with no color code is not UART
-    output.
+    simavr writes each UART line in green. A line with no green code is not
+    UART output. simavr 1.6 puts the color reset at the start of the next
+    line, so a line can start with ESC[0m.
     """
-    if "\x1b[" not in raw:
+    if _UART_COLOR not in raw:
         return None
     text = _ANSI.sub("", raw).rstrip("\r\n")
     if text.endswith(".."):
@@ -140,7 +146,7 @@ class SimavrEmulator:
             )
         except FileNotFoundError:
             self._close_pty()
-            raise RuntimeError("simavr not found. Install with: brew install simavr")
+            raise RuntimeError("simavr not found. See the install steps in README.md (For AI agents).")
         finally:
             if slave is not None:
                 os.close(slave)
@@ -201,22 +207,28 @@ class SimavrEmulator:
             for raw in self.process.stdout:
                 yield raw.decode("utf-8", errors="replace")
 
+    def _handle_line(self, raw: str):
+        text = parse_uart_line(raw)
+        if text is None:
+            line = _ANSI.sub("", raw).rstrip("\r\n")
+            if line:
+                self._log.append(line)
+            return
+        self._uart_lines.put(text)
+        for cb in self._callbacks["uart_rx"]:
+            cb(text)
+
     def _read_stdout(self):
         for raw in self._stdout_lines():
-            text = parse_uart_line(raw)
-            if text is None:
-                self._log.append(raw.rstrip("\n"))
-                continue
-            self._uart_lines.put(text)
-            for cb in self._callbacks["uart_rx"]:
-                cb(text)
+            self._handle_line(raw)
 
     def _read_stderr(self):
+        # simavr 1.6 writes UART lines on stderr (see the module docstring).
         proc = self.process
         if not proc or not proc.stderr:
             return
         for raw in proc.stderr:
-            self._log.append(raw.decode("utf-8", errors="replace").rstrip("\n"))
+            self._handle_line(raw.decode("utf-8", errors="replace"))
 
     @property
     def log(self) -> list[str]:
