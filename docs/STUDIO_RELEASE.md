@@ -73,7 +73,8 @@ Tests: `cd desktop/src-tauri && cargo test --locked` and
 ## Simulators
 
 The Simulate page uses programs that the user installs. The app does not
-include them.
+include them (decision D4). The install steps for all tools on macOS,
+Windows, and Linux are in [INSTALL_TOOLCHAINS.md](INSTALL_TOOLCHAINS.md).
 
 | Simulator | Family | macOS | Linux | Windows |
 |-----------|--------|-------|-------|---------|

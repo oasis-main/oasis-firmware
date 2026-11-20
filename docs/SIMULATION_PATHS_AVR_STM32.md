@@ -1,7 +1,7 @@
 # Simulation paths: Arduino (AVR) and STM32
 
 Status: S0 and S1 done (2026-11-20, branch `feat/fw-018-sim-paths`). S2 to S4
-open. Work item: FW-018.
+open. Decisions D1 to D4 made on 2026-11-20 (section 7). Work item: FW-018.
 
 ## 1. Goal
 
@@ -208,23 +208,29 @@ The assistant gets two tools: `sim_plan` and `sim_run`. A person accepts each
 | S2 | AVR generation (sketch + `arduino-cli`). STM32 generation fixes (G2, G3). | `examples/` gets one Uno and one STM32F103 device. Design → Generate → Simulate prints sensor log lines for both. |
 | S3 | Pin traces: simavr VCD output (`-o <file>`, `-at <name>=portpin@...`); Renode GPIO state. Sensor models from `simulation/components/` through the MCP server. | A pin trace shows the LED pin toggle. A DHT22 model value appears in the UART log. |
 | S4 | Read-back path (section 5.3) for owned boards. | A Uno image read back with avrdude runs in simavr and matches the board's serial output. |
+| D1 test | Run the Uno fixture in avr8js in the app window. Compare the UART text with the simavr output. | The avr8js run prints `tick 0` to `tick 5`. Then decide if avr8js replaces the Windows blocker. |
 
-S0 and S1 need no decision. S2 depends on decision D2. S1 on Windows depends
-on decision D1.
+S2 can start now (D2 is decided). Tool install work is FW-020
+([TOOLCHAIN_SETUP_DESIGN.md](TOOLCHAIN_SETUP_DESIGN.md)).
 
-## 7. Decisions needed
+## 7. Decisions (made 2026-11-20)
 
-- D1. **AVR on Windows.** Option A: no AVR simulation on Windows in v1; the
-  app shows the blocker. Option B: run the AVR model in the app window with
-  avr8js (MIT license, JavaScript, ATmega328P). Option B gives one AVR engine
-  on all three systems. Check the avr8js peripheral list before choosing B.
-- D2. **Arduino firmware language.** Option A: generate an Arduino C++ sketch
-  and build with `arduino-cli` (proven here, tools present). Option B:
-  generate Rust with `avr-hal` (needs a nightly Rust toolchain and the AVR
-  target). Recommendation: A.
-- D3. **First STM32 chips.** Recommendation: STM32F103 first (Renode model
-  present, fixture proven). STM32F411 has no exact Renode model (G7).
-- D4. **Simulator install.** Option A: the user installs simavr and Renode;
-  the app shows install steps. Option B: the installer includes the
-  simulators. Renode adds a large .NET runtime. simavr is GPL-3.0; the app is
-  Apache-2.0. Recommendation: A for v1.
+| Decision | Choice | Reason | Follow-up |
+|----------|--------|--------|-----------|
+| D1. AVR on Windows | A: no AVR simulation on Windows in v1. The Simulate view shows the blocker. | No new engine. One AVR engine (simavr) for the app and the Python MCP server. | Test avr8js with the Uno fixture (phase "D1 test"). Choose avr8js only if the UART text matches simavr. |
+| D2. Arduino firmware language | A: Arduino C++ sketch, built with `arduino-cli`. | Proven on this Mac. The Arduino sensor libraries work. The `legacy/ino/` templates are a start. | The `arduino:avr` core is approximately 240 MB on this Mac (avr-gcc 215 MB, core 24 MB, avrdude 1.1 MB). The setup guide states this size. |
+| D3. First STM32 chip | A: STM32F103 first. | Renode has an exact model. The fixture passes in the app. | Add STM32F411 later on the nearest Renode model. Mark those runs "approximate" in the plan. |
+| D4. Simulator install | A: the user installs the tools. The app explains each tool and gives the steps. | Small installer. No bundled binaries to sign. No licence work in v1. | FW-020: install guide, setup wizard on macOS, Windows, and Linux, then app-managed download (option C) for a missing tool. See [TOOLCHAIN_SETUP_DESIGN.md](TOOLCHAIN_SETUP_DESIGN.md). |
+
+### Options that were not chosen
+
+- D1 B: avr8js in the app window. One engine on all systems and no install,
+  but a second AVR engine beside simulation in Python, and a second run path
+  outside the Rust runner.
+- D2 B: Rust with `avr-hal`. One generated language, but a nightly toolchain,
+  few sensor crates, and no test here.
+- D3 B: STM32F411 first. A popular board, but no exact Renode model (G7).
+- D4 B: the installer includes the simulators. Renode is 215 MB on this Mac
+  (`/Applications/Renode.app`). Each bundled binary needs signing and
+  notarization on macOS. simavr is GPL-3.0, so a bundle must carry the
+  licence text and the source.
