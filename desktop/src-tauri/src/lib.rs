@@ -72,6 +72,34 @@ fn flash_plan(request: flash::PlanRequest, studio: State<'_, Studio>) -> flash::
     studio.flash_plan(&request, Actor::User)
 }
 
+/// Start a flash that a person confirmed in the Flash page. The back end
+/// builds a fresh plan and checks it again. Output arrives as "flash://line"
+/// events; the end arrives as one "flash://done" event. Returns the run id.
+#[tauri::command]
+async fn flash_start(request: flash::RunRequest, app: AppHandle) -> Result<String, String> {
+    let handle = app.clone();
+    let ticket = tauri::async_runtime::spawn_blocking(move || {
+        handle.state::<Studio>().flash_begin(&request, Actor::User, Arc::new(AtomicBool::new(false)))
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    let run_id = ticket.run_id.clone();
+    std::thread::spawn(move || {
+        let emitter = app.clone();
+        let emit = Arc::new(move |line: flash::FlashLine| {
+            let _ = emitter.emit("flash://line", line);
+        });
+        let done = app.state::<Studio>().flash_execute(ticket, emit);
+        let _ = app.emit("flash://done", done);
+    });
+    Ok(run_id)
+}
+
+#[tauri::command]
+fn flash_stop(studio: State<'_, Studio>) -> bool {
+    studio.flash_stop()
+}
+
 #[tauri::command]
 async fn sim_plan(request: sim::SimRequest) -> Result<sim::SimPlan, String> {
     tauri::async_runtime::spawn_blocking(move || sim::plan(&request)).await.map_err(|e| e.to_string())
@@ -127,6 +155,8 @@ pub fn run() {
             registry_remove,
             audit_tail,
             flash_plan,
+            flash_start,
+            flash_stop,
             sim_plan,
             sim_start,
             sim_stop,

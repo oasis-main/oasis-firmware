@@ -105,16 +105,60 @@ pub struct SimTicket {
     pub stop: Arc<AtomicBool>,
 }
 
+/// A flash run that has a slot. Give it to [`Studio::flash_execute`].
+pub struct FlashTicket {
+    pub run_id: String,
+    pub plan: flash::FlashPlan,
+    pub run_dir: PathBuf,
+    pub backup_dir: PathBuf,
+    pub stop: Arc<AtomicBool>,
+    pub actor: Actor,
+}
+
+type RunSlot = Mutex<Option<(String, Arc<AtomicBool>)>>;
+
 pub struct Studio {
     store: Store,
     projects_dir: PathBuf,
     /// The active simulation run: run id and its stop flag. One run at a time.
-    sim_run: Mutex<Option<(String, Arc<AtomicBool>)>>,
+    sim_run: RunSlot,
+    /// The active flash run. One flash at a time.
+    flash_run: RunSlot,
+}
+
+/// Frees a run slot when the run ends, also after a panic.
+struct Release<'a>(&'a RunSlot);
+impl Drop for Release<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut active) = self.0.lock() {
+            *active = None;
+        }
+    }
+}
+
+fn take_slot(slot: &RunSlot, what: &str, stop: &Arc<AtomicBool>) -> Result<String, String> {
+    let run_id = chrono::Local::now().format("%Y%m%d-%H%M%S-%3f").to_string();
+    let mut active = slot.lock().map_err(|e| e.to_string())?;
+    if let Some((id, _)) = active.as_ref() {
+        return Err(format!("{what} {id} is still running. Stop it first."));
+    }
+    *active = Some((run_id.clone(), stop.clone()));
+    Ok(run_id)
+}
+
+fn stop_slot(slot: &RunSlot) -> bool {
+    match slot.lock().ok().and_then(|a| a.as_ref().map(|(_, s)| s.clone())) {
+        Some(stop) => {
+            stop.store(true, Ordering::SeqCst);
+            true
+        }
+        None => false,
+    }
 }
 
 impl Studio {
     pub fn new(paths: Paths) -> Self {
-        Self { store: Store::new(paths.data_dir), projects_dir: paths.projects_dir, sim_run: Mutex::new(None) }
+        Self { store: Store::new(paths.data_dir), projects_dir: paths.projects_dir, sim_run: Mutex::new(None), flash_run: Mutex::new(None) }
     }
 
     pub fn store(&self) -> &Store {
@@ -190,14 +234,7 @@ impl Studio {
         if !plan.blockers.is_empty() {
             return Err(plan.blockers.join(" "));
         }
-        let run_id = chrono::Local::now().format("%Y%m%d-%H%M%S-%3f").to_string();
-        {
-            let mut active = self.sim_run.lock().map_err(|e| e.to_string())?;
-            if let Some((id, _)) = active.as_ref() {
-                return Err(format!("Simulation {id} is still running. Stop it first."));
-            }
-            *active = Some((run_id.clone(), stop.clone()));
-        }
+        let run_id = take_slot(&self.sim_run, "Simulation", &stop)?;
         let run_dir = self.store.dir().join("sim-runs").join(&run_id);
         Ok(SimTicket { run_id, plan, run_dir, stop })
     }
@@ -205,14 +242,6 @@ impl Studio {
     /// Run a ticket to the end (exit, time limit, or stop). Writes one
     /// action-log line and frees the run slot. Blocks the caller.
     pub fn sim_execute(&self, ticket: SimTicket, actor: Actor, emit: Arc<dyn Fn(sim::SimLine) + Send + Sync>) -> sim::SimDone {
-        struct Release<'a>(&'a Mutex<Option<(String, Arc<AtomicBool>)>>);
-        impl Drop for Release<'_> {
-            fn drop(&mut self) {
-                if let Ok(mut active) = self.0.lock() {
-                    *active = None;
-                }
-            }
-        }
         let _release = Release(&self.sim_run);
         let SimTicket { run_id, plan, run_dir, stop } = ticket;
         let done = sim::execute(&plan, &run_id, &run_dir, stop, emit);
@@ -228,13 +257,7 @@ impl Studio {
 
     /// Set the stop flag of the active run. False if no run is active.
     pub fn sim_stop(&self) -> bool {
-        match self.sim_run.lock().ok().and_then(|a| a.as_ref().map(|(_, s)| s.clone())) {
-            Some(stop) => {
-                stop.store(true, Ordering::SeqCst);
-                true
-            }
-            None => false,
-        }
+        stop_slot(&self.sim_run)
     }
 
     // ------------------------------------------------- app only (a person)
@@ -247,5 +270,87 @@ impl Studio {
 
     pub fn registry_remove(&self, id: &str) -> Result<(), String> {
         self.store.remove(id)
+    }
+
+    /// Build a fresh plan, check it against what the person confirmed, and
+    /// take the flash slot. Only [`Actor::User`] may flash: the in-app
+    /// assistant and MCP clients get an error.
+    pub fn flash_begin(&self, req: &flash::RunRequest, actor: Actor, stop: Arc<AtomicBool>) -> Result<FlashTicket, String> {
+        if actor != Actor::User {
+            self.store.audit(actor.as_str(), "flash.run", &req.plan.port, "refused: only a person can start a flash");
+            return Err("Only a person in the Oasis Studio app can start a flash.".into());
+        }
+        let plan = flash::plan(&req.plan, &self.store, actor.as_str());
+        flash::check_run(&plan, req)?;
+        let run_id = take_slot(&self.flash_run, "Flash", &stop)?;
+        let run_dir = self.store.dir().join("flash-runs").join(&run_id);
+        let backup_dir = self.store.dir().join("backups").join(plan.owned_device_id.as_deref().unwrap_or("unknown"));
+        Ok(FlashTicket { run_id, plan, run_dir, backup_dir, stop, actor })
+    }
+
+    /// Run a flash ticket to the end. Writes one action-log line and frees
+    /// the flash slot. Blocks the caller.
+    pub fn flash_execute(&self, ticket: FlashTicket, emit: flash::EmitFn) -> flash::FlashDone {
+        let _release = Release(&self.flash_run);
+        let FlashTicket { run_id, plan, run_dir, backup_dir, stop, actor } = ticket;
+        let done = flash::execute(&plan, &run_id, &run_dir, &backup_dir, stop, emit);
+        let sha = plan.artifact_sha256.as_deref().unwrap_or("-");
+        let target = format!(
+            "{} {} {} sha256:{}",
+            plan.family,
+            plan.owned_device.as_deref().unwrap_or("-"),
+            plan.port,
+            &sha[..sha.len().min(16)]
+        );
+        self.store.audit(actor.as_str(), "flash.run", &target, &done.describe());
+        done
+    }
+
+    /// Set the stop flag of the active flash. False if no flash runs. A
+    /// stopped write can leave the board with no working firmware; the
+    /// backup file restores it.
+    pub fn flash_stop(&self) -> bool {
+        stop_slot(&self.flash_run)
+    }
+}
+
+#[cfg(test)]
+mod flash_slot_tests {
+    use super::*;
+
+    fn studio(dir: &Path) -> Studio {
+        Studio::new(Paths { data_dir: dir.join("data"), projects_dir: dir.join("projects") })
+    }
+
+    fn request() -> flash::RunRequest {
+        flash::RunRequest {
+            plan: flash::PlanRequest {
+                port: "/dev/null".into(),
+                family: "avr_uno".into(),
+                artifact: "/nonexistent.hex".into(),
+                usb_serial: None,
+                usb_vid: None,
+                usb_pid: None,
+                device_id: None,
+            },
+            expected_sha256: "aa".into(),
+            allow_no_backup: false,
+        }
+    }
+
+    #[test]
+    fn only_a_person_can_start_a_flash() {
+        let tmp = tempfile::tempdir().unwrap();
+        let s = studio(tmp.path());
+        for actor in [Actor::Mcp, Actor::Assistant] {
+            let err = s.flash_begin(&request(), actor, Arc::new(AtomicBool::new(false))).err().unwrap();
+            assert!(err.contains("Only a person"), "{err}");
+        }
+        let log = s.audit_tail(10);
+        assert_eq!(log.iter().filter(|e| e.action == "flash.run" && e.result.starts_with("refused")).count(), 2);
+        // A person gets the plan blockers instead.
+        let err = s.flash_begin(&request(), Actor::User, Arc::new(AtomicBool::new(false))).err().unwrap();
+        assert!(err.contains("Firmware file not found"), "{err}");
+        assert!(!s.flash_stop(), "no flash runs");
     }
 }
