@@ -32,7 +32,7 @@ Build, test, and release steps: [`docs/STUDIO_RELEASE.md`](../docs/STUDIO_RELEAS
 | Design | Validates a `device.yaml`; generates firmware into `Documents/Oasis Studio/<device id>/firmware` | writes files on this computer only |
 | Owned devices | The list of devices the app may write to. You add each one and declare ownership | local list |
 | Simulate | Runs a firmware file in simavr (Arduino Uno, ATmega328P) or Renode (STM32F103) for a time limit and shows the UART output | runs a simulator on this computer; no hardware |
-| Flash | Builds a flash plan with every step and its argument list, then flashes after you confirm: backup of the current firmware, write, verify. ESP32 (espflash), Arduino Uno (avrdude), STM32 (probe-rs, the owned probe only), RP2040 (picotool), MicroPython (mpremote), Raspberry Pi (SSH key login, systemd restart) | writes to an owned device after your confirm; backup file and report in the app data folder |
+| Flash | Builds a flash plan with every step and its argument list, then flashes after you confirm: backup of the current firmware, write, verify. ESP32 (espflash), Arduino Uno (avrdude, with backup), any Arduino board of an installed arduino-cli core (arduino-cli upload, no backup; "Find board" gets the board name from arduino-cli), STM32 (probe-rs, the owned probe only), RP2040 (picotool), MicroPython (mpremote), Raspberry Pi (SSH key login, systemd restart) | writes to an owned device after your confirm; backup file and report in the app data folder |
 | Activity log | One JSON line for each change (`audit.jsonl` in the app data folder) | read |
 
 ## Safety rules in the code

@@ -16,6 +16,7 @@
 //! 3. Each change writes one line to the action log (`audit.jsonl`), with
 //!    the actor that asked for the change.
 
+pub mod arduino;
 pub mod boards;
 pub mod catalog;
 pub mod device;
@@ -193,6 +194,11 @@ impl Studio {
         boards::table().families.clone()
     }
 
+    /// Ports with the board names (FQBN) that arduino-cli finds. Reads only.
+    pub fn arduino_boards(&self) -> Result<Vec<arduino::ArduinoPort>, String> {
+        arduino::board_list()
+    }
+
     pub fn validate_config(&self, yaml: &str) -> device::ValidateResult {
         device::validate(yaml)
     }
@@ -332,6 +338,7 @@ mod flash_slot_tests {
                 usb_vid: None,
                 usb_pid: None,
                 device_id: None,
+                fqbn: None,
             },
             expected_sha256: "aa".into(),
             allow_no_backup: false,

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  api, errText, onFlash, type DetectedPort, type Family, type FlashDone, type FlashLine, type FlashPlan, type PlanRequest,
+  api, errText, needsFqbn, onFlash, type DetectedPort, type Family, type FlashDone, type FlashLine, type FlashPlan, type PlanRequest,
 } from "../api";
 
 function exitText(e: FlashDone["steps"][number]["exit"]): string {
@@ -19,6 +19,9 @@ export function Flash({ port }: { port: DetectedPort | null }) {
   const [family, setFamily] = useState(port?.family ?? "");
   const [artifact, setArtifact] = useState("");
   const [deviceId, setDeviceId] = useState("");
+  const [fqbn, setFqbn] = useState("");
+  const [boardNote, setBoardNote] = useState<string | null>(null);
+  const [finding, setFinding] = useState(false);
   const [plan, setPlan] = useState<FlashPlan | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [noBackupOk, setNoBackupOk] = useState(false);
@@ -60,6 +63,7 @@ export function Flash({ port }: { port: DetectedPort | null }) {
 
   const fam = families.find((f) => f.family === family);
   const ssh = fam?.transport === "ssh";
+  const arduino = needsFqbn(fam);
 
   const request = (): PlanRequest => ({
     port: portName,
@@ -69,7 +73,35 @@ export function Flash({ port }: { port: DetectedPort | null }) {
     usb_vid: ssh ? null : port?.vid ?? null,
     usb_pid: ssh ? null : port?.pid ?? null,
     device_id: ssh ? deviceId || null : null,
+    fqbn: arduino ? fqbn.trim() || null : null,
   });
+
+  // Ask arduino-cli which board model is on the port. The command only reads.
+  const findBoard = async () => {
+    setError(null);
+    setBoardNote(null);
+    setFinding(true);
+    try {
+      const ports = await api.arduinoBoards();
+      const hit = ports.find((p) => p.port === portName);
+      if (!hit) {
+        setBoardNote(`arduino-cli found no USB serial port with the name ${portName}. Check the port name.`);
+      } else if (hit.matches.length === 0) {
+        setBoardNote("arduino-cli does not know the board model on this port. Install the core of the board (arduino-cli core install <core>), or type the FQBN.");
+      } else {
+        setFqbn(hit.matches[0].fqbn);
+        if (!usbSerial && hit.serial) setUsbSerial(hit.serial);
+        setPlan(null);
+        setBoardNote(hit.matches.length === 1
+          ? `arduino-cli found ${hit.matches[0].name}.`
+          : `arduino-cli found more than one model: ${hit.matches.map((m) => `${m.name} (${m.fqbn})`).join(", ")}. The first one is filled in. Change it if necessary.`);
+      }
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setFinding(false);
+    }
+  };
 
   const makePlan = async () => {
     setError(null);
@@ -146,6 +178,21 @@ export function Flash({ port }: { port: DetectedPort | null }) {
           <input className="mono" value={artifact} onChange={(e) => { setArtifact(e.target.value); setPlan(null); }} disabled={!!runId}
             placeholder={ssh ? "/path/to/greenhouse-01-supervisor" : "/path/to/firmware.bin"} />
         </label>
+        {arduino && (
+          <div className="row" style={{ alignItems: "flex-end", marginTop: 8 }}>
+            <label className="field" style={{ minWidth: 280 }}>Board name (FQBN)
+              <input className="mono" value={fqbn} onChange={(e) => { setFqbn(e.target.value); setPlan(null); }} disabled={!!runId} placeholder="arduino:avr:mega" />
+            </label>
+            <button className="btn" onClick={findBoard} disabled={!portName || finding || !!runId}>{finding ? "Finding…" : "Find board"}</button>
+          </div>
+        )}
+        {arduino && boardNote && <div className="notice">{boardNote}</div>}
+        {arduino && (
+          <div className="notice">
+            arduino-cli writes the firmware with the upload tool of the board core. arduino-cli cannot read the current
+            firmware, so this family has no backup. For an Arduino Uno with a backup, pick "Arduino Uno / ATmega328P".
+          </div>
+        )}
         {bridgeOnly && <div className="notice">This port is a USB-UART bridge. The bridge does not identify the board. Pick the board family.</div>}
         {ssh && (
           <div className="notice">
@@ -169,6 +216,7 @@ export function Flash({ port }: { port: DetectedPort | null }) {
             <tbody>
               <tr><th>Owned device</th><td>{plan.owned_device}</td></tr>
               <tr><th>Family</th><td>{fam?.label ?? plan.family}</td></tr>
+              {plan.fqbn && <tr><th>Board name</th><td className="mono">{plan.fqbn}</td></tr>}
               <tr><th>{ssh ? "Pi address" : "Port"}</th><td className="mono">{plan.port}</td></tr>
               <tr><th>Firmware</th><td className="mono">{plan.artifact}<div className="muted">sha256 {plan.artifact_sha256} · {plan.artifact_size ?? "?"} bytes</div></td></tr>
               <tr><th>Steps</th><td>{plan.steps.map((s) => s.name).join(" → ")}</td></tr>
@@ -228,6 +276,7 @@ export function Flash({ port }: { port: DetectedPort | null }) {
           <table style={{ marginTop: 8 }}>
             <tbody>
               <tr><th>Owned device</th><td>{plan.owned_device ?? <span className="muted">not matched</span>}</td></tr>
+              {plan.fqbn && <tr><th>Board name</th><td className="mono">{plan.fqbn}</td></tr>}
               <tr><th>Firmware sha256</th><td className="mono">{plan.artifact_sha256 ?? "-"}</td></tr>
               <tr><th>Backup</th><td>{plan.backup_method ?? <span className="warn">No backup method for this family yet.</span>}</td></tr>
               {plan.steps.map((s) => (

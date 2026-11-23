@@ -86,12 +86,13 @@ fn flash_args() -> Value {
         "type": "object",
         "properties": {
             "port": { "type": "string", "description": "Serial port from list_ports, for example /dev/cu.usbmodem1101 or COM3. For the rpi family: user@host or user@host:port of the Raspberry Pi (SSH)." },
-            "family": { "type": "string", "description": "Board family from list_families: esp32, rpi, avr_uno, stm32, rp2040, or micropython." },
+            "family": { "type": "string", "description": "Board family from list_families: esp32, rpi, avr_uno, arduino, stm32, rp2040, or micropython." },
             "artifact": { "type": "string", "description": "Full path to the firmware file (for rpi: the built supervisor program)." },
             "usb_serial": { "type": "string", "description": "USB serial number of the board or the debug probe, from list_ports. The plan is blocked if this serial is not in the owned-device list." },
             "usb_vid": { "type": "integer", "minimum": 0, "maximum": 65535, "description": "USB vendor id from list_ports. The stm32 family needs it to select the owned probe." },
             "usb_pid": { "type": "integer", "minimum": 0, "maximum": 65535, "description": "USB product id from list_ports. The stm32 family needs it to select the owned probe." },
-            "device_id": { "type": "string", "description": "device.id from device.yaml. The rpi family needs it: the program goes to /opt/oasis/<device_id>/." }
+            "device_id": { "type": "string", "description": "device.id from device.yaml. The rpi family needs it: the program goes to /opt/oasis/<device_id>/." },
+            "fqbn": { "type": "string", "description": "arduino-cli board name (FQBN), for example arduino:avr:mega. The arduino family needs it. Get it from arduino_boards." }
         },
         "required": ["port", "family", "artifact"],
         "additionalProperties": false
@@ -156,6 +157,14 @@ static TOOLS: &[ToolDef] = &[
         class: ToolClass::Observe,
         summary: "List the board families, flash recipes, and simulators.",
         description: "List the board families from the board table: flash tool, argument template, baud rate, and the simulator (engine, accepted file kinds) if the family has one.",
+        schema: no_args,
+    },
+    ToolDef {
+        name: "arduino_boards",
+        title: "Find Arduino board names",
+        class: ToolClass::Observe,
+        summary: "Ask arduino-cli which board model is on each port.",
+        description: "Run `arduino-cli board list` (read only, time limit 20 s). Returns each serial port with a USB id: port, vid, pid, serial, and the matching boards (name and FQBN) of the installed arduino-cli cores. Give the FQBN to flash_plan for the arduino family. An empty match list means that the core is not installed, or that the board has a USB-UART bridge that does not name a model.",
         schema: no_args,
     },
     ToolDef {
@@ -365,6 +374,7 @@ pub fn call(studio: &Studio, name: &str, args: &Value, ctx: &CallContext) -> R<V
         "list_ports" => to_value(studio.list_ports().map_err(CallError::Failed)?),
         "list_tools" => to_value(studio.list_tools()),
         "list_families" => to_value(studio.list_families()),
+        "arduino_boards" => to_value(studio.arduino_boards().map_err(CallError::Failed)?),
         "validate_config" => to_value(studio.validate_config(&config_text(m)?)),
         "generate_firmware" => to_value(studio.generate_firmware(&config_text(m)?, ctx.actor).map_err(CallError::Failed)?),
         "registry_list" => to_value(studio.registry_list().map_err(CallError::Failed)?),
@@ -378,6 +388,7 @@ pub fn call(studio: &Studio, name: &str, args: &Value, ctx: &CallContext) -> R<V
                 usb_vid: opt_u16(m, "usb_vid")?,
                 usb_pid: opt_u16(m, "usb_pid")?,
                 device_id: opt_str(m, "device_id")?.map(Into::into),
+                fqbn: opt_str(m, "fqbn")?.map(Into::into),
             };
             to_value(studio.flash_plan(&req, ctx.actor))
         }

@@ -1,6 +1,6 @@
 # FW-015 — Board detect, flash recipe, log capture (spec, draft)
 
-Status: flash run built (2026-11-23, `desktop/studio-core/src/flash.rs`), level `sim-validated`: unit tests and an end-to-end test with fake flash programs (`desktop/studio-core/tests/flash_e2e.rs`) for ESP32, Raspberry Pi (SSH), Arduino Uno, and STM32. No real board has been flashed yet (L4). The serial monitor and the boot-banner check (sections 5 and 6 `hw-validated`) are not built.
+Status: flash run built (2026-11-23, `desktop/studio-core/src/flash.rs`), level `sim-validated`: unit tests and an end-to-end test with fake flash programs (`desktop/studio-core/tests/flash_e2e.rs`) for ESP32, Raspberry Pi (SSH), Arduino Uno (avrdude), any Arduino board through arduino-cli (family `arduino`, board name FQBN), and STM32. No real board has been flashed yet (L4). The serial monitor and the boot-banner check (sections 5 and 6 `hw-validated`) are not built.
 
 Built differently from this draft: the app is Tauri 2, not egui. The executor runs the steps of a plan in order (backup, write, then install, restart, verify for a Raspberry Pi). A family with no tested read method has no backup step, and the person must accept a flash with no backup. Only a person in the app can start a flash; the in-app assistant and MCP clients get an error. The Raspberry Pi path (out of scope in section 2 of this draft) is now in: `scp` with key login, then `systemctl restart` of the generated unit.
 
