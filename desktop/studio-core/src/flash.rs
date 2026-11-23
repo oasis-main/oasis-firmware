@@ -47,6 +47,10 @@ pub struct PlanRequest {
     /// the program in `/opt/oasis/<device_id>/`.
     #[serde(default)]
     pub device_id: Option<String>,
+    /// Fully qualified board name for arduino-cli, for example
+    /// `arduino:avr:mega`. A family whose args name `{fqbn}` needs it.
+    #[serde(default)]
+    pub fqbn: Option<String>,
 }
 
 /// One program run in a flash.
@@ -84,6 +88,8 @@ pub struct FlashPlan {
     pub backup_method: Option<String>,
     /// Raspberry Pi: the path of the backup copy on the Pi.
     pub remote_backup: Option<String>,
+    /// arduino-cli board name (FQBN) that the write step uses.
+    pub fqbn: Option<String>,
     /// Empty means the plan can run (after the person confirms).
     pub blockers: Vec<String>,
 }
@@ -112,9 +118,35 @@ pub fn fill(template: &str, vars: &[(&str, &str)]) -> String {
 }
 
 pub fn substitute(template: &[String], port: &str, baud: u32, artifact: &str, chip: Option<&str>) -> Vec<String> {
+    substitute_with(template, port, baud, artifact, chip, None)
+}
+
+fn substitute_with(template: &[String], port: &str, baud: u32, artifact: &str, chip: Option<&str>, fqbn: Option<&str>) -> Vec<String> {
     let baud = baud.to_string();
-    let vars = [("port", port), ("baud", baud.as_str()), ("artifact", artifact), ("chip", chip.unwrap_or(""))];
+    let vars = [("port", port), ("baud", baud.as_str()), ("artifact", artifact), ("chip", chip.unwrap_or("")), ("fqbn", fqbn.unwrap_or(""))];
     template.iter().map(|a| fill(a, &vars)).collect()
+}
+
+/// True when the family's write arguments name `{fqbn}` (arduino-cli).
+pub fn needs_fqbn(fam: &Family) -> bool {
+    fam.args.iter().any(|a| a.contains("{fqbn}"))
+}
+
+/// An arduino-cli board name: `vendor:architecture:board`, with an optional
+/// fourth part of board options `key=value,key=value`. Each name part has
+/// only letters, digits, `_`, `-`, `.`, and does not start with `-`.
+pub fn valid_fqbn(s: &str) -> bool {
+    let part = |p: &str| {
+        !p.is_empty() && p.len() <= 64 && !p.starts_with('-') && p.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+    };
+    let parts: Vec<&str> = s.split(':').collect();
+    match parts.as_slice() {
+        [v, a, b] => part(v) && part(a) && part(b),
+        [v, a, b, opts] => {
+            part(v) && part(a) && part(b) && opts.split(',').all(|kv| kv.split_once('=').is_some_and(|(k, val)| part(k) && part(val)))
+        }
+        _ => false,
+    }
 }
 
 pub(crate) fn sha256_file(p: &Path) -> Option<String> {
@@ -192,6 +224,7 @@ pub fn plan(req: &PlanRequest, store: &Store, actor: &str) -> FlashPlan {
         owned_device_id: None,
         backup_method: None,
         remote_backup: None,
+        fqbn: None,
         blockers: vec![],
     };
     let Some(fam) = boards::family(&req.family) else {
@@ -242,8 +275,25 @@ fn plan_local(fam: &Family, req: &PlanRequest, store: &Store, p: &mut FlashPlan)
     p.owned_device = owned.as_ref().map(|d| d.name.clone());
     p.owned_device_id = owned.as_ref().map(|d| d.id.clone());
 
-    let mut write = substitute(&fam.args, &req.port, fam.baud, &req.artifact, fam.chip.as_deref());
-    let mut backup = fam.backup.as_ref().map(|b| substitute(&b.args, &req.port, fam.baud, &req.artifact, fam.chip.as_deref()));
+    let fqbn = if needs_fqbn(fam) {
+        match req.fqbn.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            Some(f) if valid_fqbn(f) => Some(f.to_string()),
+            Some(f) => {
+                p.blockers.push(format!("\"{f}\" is not a valid board name (FQBN). Write it as vendor:architecture:board, for example arduino:avr:mega."));
+                None
+            }
+            None => {
+                p.blockers.push("An Arduino flash needs the board name (FQBN), for example arduino:avr:mega. Press \"Find board\" or run arduino-cli board list.".into());
+                None
+            }
+        }
+    } else {
+        None
+    };
+    p.fqbn = fqbn.clone();
+    let sub = |t: &[String]| substitute_with(t, &req.port, fam.baud, &req.artifact, fam.chip.as_deref(), fqbn.as_deref());
+    let mut write = sub(&fam.args);
+    let mut backup = fam.backup.as_ref().map(|b| sub(&b.args));
     if let Some(flag) = &fam.probe_arg {
         // Select the owned probe, so that the tool cannot write to another
         // probe on the same computer.
@@ -548,7 +598,7 @@ fn backup_ext(plan: &FlashPlan) -> String {
 fn finish(plan: &FlashPlan, mut done: FlashDone, run_dir: &Path) -> FlashDone {
     let report = serde_json::json!({
         "run_id": done.run_id,
-        "board": { "family": plan.family, "port": plan.port, "owned_device": plan.owned_device, "owned_device_id": plan.owned_device_id },
+        "board": { "family": plan.family, "port": plan.port, "fqbn": plan.fqbn, "owned_device": plan.owned_device, "owned_device_id": plan.owned_device_id },
         "artifact": { "path": plan.artifact, "sha256": plan.artifact_sha256, "size": plan.artifact_size },
         "steps": done.steps,
         "backup_file": done.backup_file,
@@ -621,6 +671,7 @@ mod tests {
                 usb_vid: None,
                 usb_pid: None,
                 device_id: None,
+                fqbn: None,
             },
             &store,
             "user",
@@ -638,7 +689,7 @@ mod tests {
         let fw = tmp.path().join("fw.hex");
         std::fs::write(&fw, b":00000001FF\n").unwrap();
         let p = plan(
-            &PlanRequest { port: "/dev/cu.usbmodem1".into(), family: "avr_uno".into(), artifact: fw.to_string_lossy().into(), usb_serial: Some("UNO1".into()), usb_vid: None, usb_pid: None, device_id: None },
+            &PlanRequest { port: "/dev/cu.usbmodem1".into(), family: "avr_uno".into(), artifact: fw.to_string_lossy().into(), usb_serial: Some("UNO1".into()), usb_vid: None, usb_pid: None, device_id: None, fqbn: None },
             &store,
             "user",
         );
@@ -662,6 +713,7 @@ mod tests {
             usb_vid: vid,
             usb_pid: Some(0x374B),
             device_id: None,
+            fqbn: None,
         };
         let p = plan(&req(Some(0x0483)), &store, "user");
         assert_eq!(p.owned_device.as_deref(), Some("bench"));
@@ -684,6 +736,7 @@ mod tests {
             usb_vid: None,
             usb_pid: None,
             device_id: Some(dev.into()),
+            fqbn: None,
         };
         let p = plan(&req("greenhouse-01"), &store, "user");
         assert_eq!(p.owned_device.as_deref(), Some("bench"));
@@ -703,6 +756,60 @@ mod tests {
     }
 
     #[test]
+    fn fqbn_check() {
+        for ok in ["arduino:avr:uno", "arduino:avr:mega:cpu=atmega2560", "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M", "arduino:renesas_uno:minima"] {
+            assert!(valid_fqbn(ok), "{ok}");
+        }
+        for bad in ["", "arduino:avr", "-x:avr:uno", "arduino:avr:uno:", "arduino:avr:uno:cpu", "arduino:avr:uno a", "a:b:c:d=e:f", "arduino:avr:$(id)"] {
+            assert!(!valid_fqbn(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn arduino_plan_needs_a_valid_fqbn_and_has_no_backup() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::new(tmp.path().into());
+        owned(&store, IdentityKind::UsbSerial, "MEGA1", "arduino");
+        let fw = tmp.path().join("fw.hex");
+        std::fs::write(&fw, b":00000001FF\n").unwrap();
+        let req = |fqbn: Option<&str>| PlanRequest {
+            port: "/dev/cu.usbmodem1".into(),
+            family: "arduino".into(),
+            artifact: fw.to_string_lossy().into(),
+            usb_serial: Some("MEGA1".into()),
+            usb_vid: Some(0x2341),
+            usb_pid: Some(0x0042),
+            device_id: None,
+            fqbn: fqbn.map(Into::into),
+        };
+        let missing = plan(&req(None), &store, "user");
+        assert!(missing.blockers.iter().any(|b| b.contains("needs the board name")), "{:?}", missing.blockers);
+        let bad = plan(&req(Some("arduino:avr")), &store, "user");
+        assert!(bad.blockers.iter().any(|b| b.contains("not a valid board name")), "{:?}", bad.blockers);
+
+        let p = plan(&req(Some(" arduino:avr:mega ")), &store, "user");
+        assert!(p.blockers.iter().all(|b| b.contains("arduino-cli is not installed")), "{:?}", p.blockers);
+        assert!(p.backup_method.is_none());
+        assert_eq!(p.fqbn.as_deref(), Some("arduino:avr:mega"));
+        assert_eq!(p.steps.len(), 1);
+        assert_eq!(
+            p.steps[0].args,
+            ["upload", "-v", "--verify", "--port", "/dev/cu.usbmodem1", "--fqbn", "arduino:avr:mega", "--input-file", &fw.to_string_lossy()]
+        );
+    }
+
+    #[test]
+    fn a_family_without_fqbn_ignores_the_field() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::new(tmp.path().into());
+        let mut r = PlanRequest { port: "/dev/x".into(), family: "esp32".into(), artifact: "/fw.bin".into(), usb_serial: None, usb_vid: None, usb_pid: None, device_id: None, fqbn: None };
+        r.fqbn = Some("not valid".into());
+        let p = plan(&r, &store, "user");
+        assert!(p.fqbn.is_none());
+        assert!(!p.blockers.iter().any(|b| b.contains("FQBN")));
+    }
+
+    #[test]
     fn check_run_refuses_a_changed_file_and_a_missing_backup() {
         let mut p = FlashPlan {
             port: "p".into(),
@@ -719,10 +826,11 @@ mod tests {
             owned_device_id: Some("d1".into()),
             backup_method: None,
             remote_backup: None,
+            fqbn: None,
             blockers: vec![],
         };
         let req = |sha: &str, allow| RunRequest {
-            plan: PlanRequest { port: "p".into(), family: "esp32".into(), artifact: "/fw".into(), usb_serial: None, usb_vid: None, usb_pid: None, device_id: None },
+            plan: PlanRequest { port: "p".into(), family: "esp32".into(), artifact: "/fw".into(), usb_serial: None, usb_vid: None, usb_pid: None, device_id: None, fqbn: None },
             expected_sha256: sha.into(),
             allow_no_backup: allow,
         };
@@ -776,6 +884,7 @@ mod tests {
                 owned_device_id: Some("d1".into()),
                 backup_method: Some("avrdude".into()),
                 remote_backup: None,
+                fqbn: None,
                 blockers: vec![],
             }
         }

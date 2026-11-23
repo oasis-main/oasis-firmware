@@ -75,7 +75,7 @@ app, the simulators, and the Arduino build.
 | Node.js 20 or later | desktop app only | `brew install node` | Node.js 20 or later from nodejs.org (the Ubuntu 22.04 package is too old) | `winget install OpenJS.NodeJS.LTS` |
 | simavr | Arduino Uno simulation | `brew tap osx-cross/avr` then `brew install osx-cross/avr/simavr` | `sudo apt install simavr` | no official build; use WSL 2 and the Linux steps |
 | Renode 1.16.1 | STM32F103 simulation | `renode_1.16.1.dmg` (Intel) or `renode-1.16.1-dotnet.osx-arm64-portable.dmg` (Apple silicon); move Renode.app to `/Applications` | `renode-1.16.1.linux-portable-dotnet.tar.gz`; put the folder on PATH | `renode-1.16.1.setup.exe` |
-| arduino-cli | Arduino build of the simavr fixture | `brew install arduino-cli` | `arduino-cli_<version>_Linux_64bit.tar.gz`; put `arduino-cli` on PATH | `arduino-cli_<version>_Windows_64bit.zip` |
+| arduino-cli | Arduino build of the simavr fixture; flash of any Arduino board (family `arduino`) | `brew install arduino-cli` | `arduino-cli_<version>_Linux_64bit.tar.gz`; put `arduino-cli` on PATH | `arduino-cli_<version>_Windows_64bit.zip` |
 
 - Renode files: <https://github.com/renode/renode/releases/tag/v1.16.1>.
 - arduino-cli files: <https://github.com/arduino/arduino-cli/releases>.
@@ -185,11 +185,12 @@ app's assistant panel shows the same list.
 | `list_ports` | observe | Serial ports, USB ids, USB serial numbers, board family. Opens no port. |
 | `list_tools` | observe | Installed external programs (cargo, espflash, probe-rs, picotool, mpremote, arduino-cli, avrdude, simavr, renode). |
 | `list_families` | observe | Board families: flash recipe and simulator. |
+| `arduino_boards` | observe | Runs `arduino-cli board list` (read only). Returns each USB serial port with the matching board names (FQBN) of the installed cores. |
 | `validate_config` | observe | Validates a `device.yaml` (`yaml` text or `path`). Returns a summary and the errors. |
 | `generate_firmware` | propose | Generates firmware into `<projects>/<device id>/firmware`. Writes no other folder. |
 | `registry_list` | observe | Reads the owned-device list. |
 | `audit_tail` | observe | Reads the newest action-log lines (`limit`, 1 to 1000). |
-| `flash_plan` | propose | Builds a flash plan: tool, argument list, firmware sha256, owned device, blockers. Never runs the flash tool. |
+| `flash_plan` | propose | Builds a flash plan: tool, argument list, firmware sha256, owned device, blockers. Never runs the flash tool. The `arduino` family needs `fqbn`, for example `arduino:avr:mega`. |
 | `sim_plan` | observe | Checks if a firmware file can run in the simulator for a family. Runs nothing. |
 | `sim_run` | propose | Runs firmware in simavr (`avr_uno`) or Renode (`stm32`) until exit, the time limit (`seconds`, default 5, maximum 60), or a cancel. Returns the exit reason and the last `max_lines` UART lines (default 200). Writes the full UART output to `uart.log` in the run folder. |
 
@@ -313,7 +314,7 @@ See `legacy/rpi/README.md` for full documentation.
 |----------|-----------|------------|------------|
 | ESP32    | Rust (embassy) | Wokwi | espflash, OTA |
 | RPi      | Rust (tokio) | mock_gpio | SSH, systemd |
-| Arduino  | C++ templates | simavr (Uno / ATmega328P) | avrdude (Oasis Studio), arduino-cli |
+| Arduino  | C++ templates | simavr (Uno / ATmega328P) | Oasis Studio: avrdude (Uno, with backup) or arduino-cli (any board of an installed core, no backup) |
 | STM32    | Rust (embassy) | Renode (STM32F103) | probe-rs |
 
 Oasis Studio runs Arduino and STM32 firmware files in the simulators on the

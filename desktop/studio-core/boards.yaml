@@ -12,8 +12,9 @@
 #                must pick the family before the app plans a flash
 #
 # args: one list entry for each argument. The app replaces {port},
-# {baud}, {artifact} and {chip} inside an entry. The app never joins the
-# entries into a shell command string.
+# {baud}, {artifact}, {chip} and {fqbn} inside an entry. The app never joins
+# the entries into a shell command string. A family whose args name {fqbn}
+# needs a board name (FQBN, for example arduino:avr:mega) in each plan.
 
 usb:
   - { vid: 0x303A, pid: null,   family: esp32,      confidence: exact,  label: "Espressif native USB (ESP32-S2/S3/C3)" }
@@ -27,7 +28,7 @@ usb:
   - { vid: 0x0483, pid: 0x3748, family: stm32,      confidence: exact,  label: "ST-LINK/V2 debug probe" }
   - { vid: 0x0483, pid: 0x374B, family: stm32,      confidence: exact,  label: "ST-LINK/V2-1 debug probe" }
   - { vid: 0x2341, pid: 0x0043, family: avr_uno,    confidence: exact,  label: "Arduino Uno R3" }
-  - { vid: 0x2341, pid: null,   family: null,       confidence: bridge, label: "Arduino board (pick the model)" }
+  - { vid: 0x2341, pid: null,   family: null,       confidence: bridge, label: "Arduino board (pick the family; arduino-cli finds the model)" }
 
 # Each family has one write method. `backup` reads the current firmware into
 # a file before the write. A family without `backup` has no tested read
@@ -88,3 +89,13 @@ families:
       args: ["-m", "atmega328p", "-f", "16000000", "{artifact}"]
       accepts: [elf, hex]
       elf_machine: 83
+  # Any board of an installed arduino-cli core: Mega 2560, Nano, Leonardo,
+  # Uno R4, Nano ESP32, MKR, and others. arduino-cli runs the upload tool
+  # of the core (avrdude, bossac, dfu-util, esptool) and does the 1200-baud
+  # reset when the board needs one. -v prints the command of that tool in
+  # the log. arduino-cli has no read command, so this family has no backup.
+  # For an Uno with a backup, use avr_uno.
+  - family: arduino
+    label: "Arduino board, any model (arduino-cli)"
+    tool: arduino-cli
+    args: ["upload", "-v", "--verify", "--port", "{port}", "--fqbn", "{fqbn}", "--input-file", "{artifact}"]

@@ -31,7 +31,7 @@ fn own(studio: &Studio, kind: IdentityKind, identity: &str, family: &str) {
 }
 
 #[test]
-fn person_flashes_an_uno_and_a_pi_with_fake_tools() {
+fn person_flashes_each_platform_with_fake_tools() {
     let tmp = tempfile::tempdir().unwrap();
     let bin = tmp.path().join("bin");
     std::fs::create_dir_all(&bin).unwrap();
@@ -42,6 +42,7 @@ fn person_flashes_an_uno_and_a_pi_with_fake_tools() {
     fake(&bin, "scp", &calls, "");
     fake(&bin, "espflash", &calls, "echo 'Flashing has completed!'");
     fake(&bin, "probe-rs", &calls, "echo 'Finished in 1.0s'");
+    fake(&bin, "arduino-cli", &calls, "echo 'avrdude: 1234 bytes of flash verified'");
     // Only the fake programs and the system folders, so a real avrdude or ssh
     // on this computer is never found first.
     std::env::set_var("PATH", format!("{}:/usr/bin:/bin", bin.display()));
@@ -51,6 +52,7 @@ fn person_flashes_an_uno_and_a_pi_with_fake_tools() {
     own(&studio, IdentityKind::Hostname, "pi4.local", "rpi");
     own(&studio, IdentityKind::UsbSerial, "ESP-7C:DF", "esp32");
     own(&studio, IdentityKind::ProbeId, "066DFF485457", "stm32");
+    own(&studio, IdentityKind::UsbSerial, "95735", "arduino");
 
     let fw = tmp.path().join("blink.hex");
     std::fs::write(&fw, ":00000001FF\n").unwrap();
@@ -70,6 +72,7 @@ fn person_flashes_an_uno_and_a_pi_with_fake_tools() {
         usb_vid: Some(0x2341),
         usb_pid: Some(0x0043),
         device_id: None,
+        fqbn: None,
     };
     let plan = studio.flash_plan(&uno, Actor::User);
     assert!(plan.blockers.is_empty(), "{:?}", plan.blockers);
@@ -95,6 +98,7 @@ fn person_flashes_an_uno_and_a_pi_with_fake_tools() {
         usb_vid: None,
         usb_pid: None,
         device_id: Some("greenhouse-01".into()),
+        fqbn: None,
     };
     let plan = studio.flash_plan(&pi, Actor::User);
     assert!(plan.blockers.is_empty(), "{:?}", plan.blockers);
@@ -119,13 +123,13 @@ fn person_flashes_an_uno_and_a_pi_with_fake_tools() {
     assert!(calls[5].ends_with("[sudo -n systemctl restart greenhouse_01.service]"));
     assert!(calls[6].ends_with("[systemctl is-active --quiet greenhouse_01.service]"));
 
-    // ---- ESP32 and STM32: no backup method yet, so the person must accept
-    // a flash with no backup.
+    // ---- ESP32, STM32, and any Arduino board through arduino-cli: no backup
+    // method yet, so the person must accept a flash with no backup.
     let esp_fw = tmp.path().join("esp.elf");
     std::fs::write(&esp_fw, b"\x7fELF esp").unwrap();
     let stm_fw = tmp.path().join("stm.elf");
     std::fs::write(&stm_fw, b"\x7fELF stm").unwrap();
-    let local = |family: &str, port: &str, fw: &Path, serial: &str, vid: u16, pid: u16| PlanRequest {
+    let local = |family: &str, port: &str, fw: &Path, serial: &str, vid: u16, pid: u16, fqbn: Option<&str>| PlanRequest {
         port: port.into(),
         family: family.into(),
         artifact: fw.to_string_lossy().into(),
@@ -133,10 +137,12 @@ fn person_flashes_an_uno_and_a_pi_with_fake_tools() {
         usb_vid: Some(vid),
         usb_pid: Some(pid),
         device_id: None,
+        fqbn: fqbn.map(Into::into),
     };
     for req in [
-        local("esp32", "/dev/cu.usbserial-10", &esp_fw, "ESP-7C:DF", 0x10C4, 0xEA60),
-        local("stm32", "/dev/cu.usbmodem2", &stm_fw, "066DFF485457", 0x0483, 0x374B),
+        local("esp32", "/dev/cu.usbserial-10", &esp_fw, "ESP-7C:DF", 0x10C4, 0xEA60, None),
+        local("stm32", "/dev/cu.usbmodem2", &stm_fw, "066DFF485457", 0x0483, 0x374B, None),
+        local("arduino", "/dev/cu.usbmodem3101", &fw, "95735", 0x2341, 0x0042, Some("arduino:avr:mega")),
     ] {
         let plan = studio.flash_plan(&req, Actor::User);
         assert!(plan.blockers.is_empty(), "{}: {:?}", req.family, plan.blockers);
@@ -151,18 +157,22 @@ fn person_flashes_an_uno_and_a_pi_with_fake_tools() {
     }
     let all = std::fs::read_to_string(tmp.path().join("calls.txt")).unwrap();
     let all: Vec<&str> = all.lines().collect();
-    assert_eq!(all.len(), 9, "{all:#?}");
+    assert_eq!(all.len(), 10, "{all:#?}");
     assert_eq!(all[7], format!("espflash [flash] [--port] [/dev/cu.usbserial-10] [{}]", esp_fw.display()));
     assert_eq!(all[8], format!("probe-rs [download] [--probe] [0483:374b:066DFF485457] [--verify] [--chip] [STM32F103C8] [{}]", stm_fw.display()));
+    assert_eq!(
+        all[9],
+        format!("arduino-cli [upload] [-v] [--verify] [--port] [/dev/cu.usbmodem3101] [--fqbn] [arduino:avr:mega] [--input-file] [{}]", fw.display())
+    );
 
     // The output reached the app, and the action log has all four runs.
     let lines = lines.lock().unwrap();
     assert!(lines.iter().any(|l| l.step == "write" && l.stream == "stderr" && l.text == "avrdude done"));
     assert!(lines.iter().any(|l| l.step == "verify" && l.stream == "stdout" && l.text == "remote ok"));
     let runs: Vec<_> = studio.audit_tail(50).into_iter().filter(|e| e.action == "flash.run").collect();
-    // Four runs that wrote, plus three refused requests (the wrong hash and
-    // the two missing backup approvals) that did not take the slot.
-    assert_eq!(runs.len(), 4, "{runs:?}");
+    // Five runs that wrote, plus four refused requests (the wrong hash and
+    // the three missing backup approvals) that did not take the slot.
+    assert_eq!(runs.len(), 5, "{runs:?}");
     assert!(runs.iter().all(|e| e.actor == "user" && e.result.starts_with("ok")));
     assert!(runs.iter().any(|e| e.target.contains(&format!("sha256:{}", &sha[..16]))));
 }

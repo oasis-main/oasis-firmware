@@ -16,7 +16,7 @@ pub const KNOWN_TOOLS: &[(&str, &str, &str)] = &[
     ("probe-rs", "--version", "Debug-probe flash and log tool (STM32, RP2040)"),
     ("picotool", "version", "RP2040 flash tool"),
     ("mpremote", "--version", "MicroPython board tool"),
-    ("arduino-cli", "version", "Arduino build and upload tool"),
+    ("arduino-cli", "version", "Arduino build tool, and flash tool for any Arduino board"),
     ("avrdude", "-?", "AVR flash tool"),
     ("simavr", "", "AVR simulator (Arduino Uno)"),
     ("renode", "--version", "STM32 simulator"),

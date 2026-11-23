@@ -29,6 +29,11 @@ async fn list_tools() -> Result<Vec<tools::ToolStatus>, String> {
 }
 
 #[tauri::command]
+async fn arduino_boards() -> Result<Vec<oasis_studio_core::arduino::ArduinoPort>, String> {
+    tauri::async_runtime::spawn_blocking(oasis_studio_core::arduino::board_list).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 fn list_families(studio: State<'_, Studio>) -> Vec<boards::Family> {
     studio.list_families()
 }
@@ -148,6 +153,7 @@ pub fn run() {
             list_ports,
             list_tools,
             list_families,
+            arduino_boards,
             validate_config,
             generate_firmware,
             registry_list,

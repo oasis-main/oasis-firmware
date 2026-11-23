@@ -22,7 +22,8 @@ the activity log.
 | Simulate an Arduino Uno | simavr | 1 MB |
 | Simulate an STM32F103 | Renode | 215 MB (macOS app) |
 | Build Arduino firmware | arduino-cli and the `arduino:avr` core | 240 MB (core) |
-| Flash an Arduino Uno | avrdude (included in the `arduino:avr` core) | 1 MB |
+| Flash an Arduino Uno with a backup | avrdude (included in the `arduino:avr` core) | 1 MB |
+| Flash any other Arduino board (Mega, Nano, Leonardo, Uno R4, Nano ESP32, MKR) | arduino-cli and the core of the board, for example `arduino:avr`, `arduino:renesas_uno`, or `arduino:samd` | 240 MB (`arduino:avr` core); other cores not measured |
 | Build STM32, ESP32, or RP2040 firmware | Rust (`rustup`, `cargo`) and the chip target | 1.6 GB (stable toolchain) |
 | Flash an STM32 or RP2040 with a debug probe | probe-rs | not measured |
 | Flash an ESP32 | espflash | not measured |
@@ -96,6 +97,19 @@ The core puts avrdude in
 app does not look in this folder yet (FW-020 phase W1). Until then, install
 avrdude also with `brew install avrdude`, or the Hardware page shows
 avrdude as missing.
+
+For an Arduino board that is not an Uno, install the core of the board.
+The Flash page then uses the family "Arduino board, any model
+(arduino-cli)". To find the core and the board name (FQBN) of a connected
+board, run this command:
+
+```bash
+arduino-cli board list
+```
+
+If the FQBN column is empty, find the core with `arduino-cli core search
+<board name>`, and install the core with `arduino-cli core install <core>`.
+Then run `arduino-cli board list` again.
 
 ### 3.4 Rust firmware (STM32, ESP32, RP2040)
 

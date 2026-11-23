@@ -44,14 +44,20 @@ export interface NewDevice {
 export interface AuditEntry { at: string; actor: string; action: string; target: string; result: string }
 export interface PlanRequest {
   port: string; family: string; artifact: string; usb_serial: string | null;
-  usb_vid?: number | null; usb_pid?: number | null; device_id?: string | null;
+  usb_vid?: number | null; usb_pid?: number | null; device_id?: string | null; fqbn?: string | null;
 }
+export interface ArduinoPort {
+  port: string; vid: number | null; pid: number | null; serial: string | null;
+  matches: { name: string; fqbn: string }[];
+}
+/** True when the family's write arguments name {fqbn} (the arduino-cli family). */
+export const needsFqbn = (f: Family | undefined) => !!f?.args.some((a) => a.includes("{fqbn}"));
 export interface FlashStep { name: string; program: string; program_path: string | null; args: string[]; summary: string; timeout_s: number }
 export interface FlashPlan {
   port: string; family: string; transport: Transport; tool: string; tool_path: string | null; args: string[];
   steps: FlashStep[]; artifact: string; artifact_sha256: string | null; artifact_size: number | null;
   owned_device: string | null; owned_device_id: string | null; backup_method: string | null;
-  remote_backup: string | null; blockers: string[];
+  remote_backup: string | null; fqbn: string | null; blockers: string[];
 }
 export interface RunRequest { plan: PlanRequest; expected_sha256: string; allow_no_backup: boolean }
 export interface FlashLine { run_id: string; step: string; stream: "stdout" | "stderr" | "app"; text: string }
@@ -89,6 +95,8 @@ const FAMILIES: Family[] = [
     simulate: { engine: "renode", args: [], platform: "platforms/cpus/stm32f103.repl", uart: "usart1", accepts: ["elf"], elf_machine: 40 } },
   { family: "avr_uno", label: "Arduino Uno / ATmega328P (avrdude)", tool: "avrdude", baud: 115200, args: ["-p", "atmega328p", "-c", "arduino", "-P", "{port}", "-b", "{baud}", "-U", "flash:w:{artifact}:i"],
     simulate: { engine: "simavr", args: ["-m", "atmega328p", "-f", "16000000", "{artifact}"], accepts: ["elf", "hex"], elf_machine: 83 } },
+  { family: "arduino", label: "Arduino board, any model (arduino-cli)", tool: "arduino-cli", baud: 115200,
+    args: ["upload", "-v", "--verify", "--port", "{port}", "--fqbn", "{fqbn}", "--input-file", "{artifact}"] },
 ];
 
 // Browser preview: simulation events go through this target instead of Tauri.
@@ -145,6 +153,12 @@ async function previewCall<T>(cmd: string, args: Record<string, unknown>): Promi
       return [
         { port: "/dev/cu.usbmodem1101", kind: "usb", vid: 0x303a, pid: 0x1001, serial_number: "SAMPLE-ESP32S3", manufacturer: "Espressif", product: "USB JTAG/serial debug unit", family: "esp32", confidence: "exact", label: "Espressif native USB (ESP32-S2/S3/C3)" },
         { port: "/dev/cu.usbserial-0001", kind: "usb", vid: 0x10c4, pid: 0xea60, serial_number: "0001", manufacturer: "Silicon Labs", product: "CP2102 USB to UART", family: null, confidence: "bridge", label: "Silicon Labs CP210x USB-UART bridge" },
+        { port: "/dev/cu.usbmodem3101", kind: "usb", vid: 0x2341, pid: 0x0042, serial_number: "SAMPLE-MEGA", manufacturer: "Arduino (www.arduino.cc)", product: null, family: null, confidence: "bridge", label: "Arduino board (pick the family; arduino-cli finds the model)" },
+      ] as T;
+    case "arduino_boards":
+      return [
+        { port: "/dev/cu.usbmodem3101", vid: 0x2341, pid: 0x0042, serial: "SAMPLE-MEGA", matches: [{ name: "Arduino Mega or Mega 2560", fqbn: "arduino:avr:mega" }] },
+        { port: "/dev/cu.usbserial-0001", vid: 0x10c4, pid: 0xea60, serial: "0001", matches: [] },
       ] as T;
     case "list_tools":
       return [
@@ -189,16 +203,17 @@ async function previewCall<T>(cmd: string, args: Record<string, unknown>): Promi
         ? preview.devices.find((d) => d.identity_kind === "hostname" && d.identity === host)
         : preview.devices.find((d) => d.identity_kind === "usb_serial" && d.identity === r.usb_serial);
       const blockers = [`Browser preview: the desktop app checks the tool and the firmware file${ssh ? ", and builds the SSH steps" : ""}.`];
+      if (needsFqbn(fam) && !r.fqbn) blockers.push("An Arduino flash needs the board name (FQBN), for example arduino:avr:mega. Press \"Find board\" or run arduino-cli board list.");
       if (!owned) blockers.push(ssh
         ? `Host ${host || "(none)"} is not in the owned-device list. Add it on the Devices page (identity: Hostname) first.`
         : `USB serial ${r.usb_serial ?? "(none)"} is not in the owned-device list. Add the board on the Devices page first.`);
       log("flash.plan", r.port, "blocked");
-      const wargs = (fam?.args ?? []).map((a) => a.replace("{port}", r.port).replace("{artifact}", r.artifact).replace("{chip}", fam?.chip ?? ""));
+      const wargs = (fam?.args ?? []).map((a) => a.replace("{port}", r.port).replace("{artifact}", r.artifact).replace("{chip}", fam?.chip ?? "").replace("{fqbn}", r.fqbn ?? ""));
       return {
         port: r.port, family: r.family, transport: fam?.transport ?? "usb", tool: fam?.tool ?? "", tool_path: null, args: wargs,
         steps: [{ name: "write", program: fam?.tool ?? "", program_path: null, args: wargs, summary: "Write and verify the new firmware.", timeout_s: 180 }],
         artifact: r.artifact, artifact_sha256: null, artifact_size: null, owned_device: owned?.name ?? null, owned_device_id: owned?.id ?? null,
-        backup_method: null, remote_backup: null, blockers,
+        backup_method: null, remote_backup: null, fqbn: needsFqbn(fam) ? r.fqbn ?? null : null, blockers,
       } as T;
     }
     case "flash_start":
@@ -225,6 +240,7 @@ export const api = {
   listPorts: () => call<DetectedPort[]>("list_ports"),
   listTools: () => call<ToolStatus[]>("list_tools"),
   listFamilies: () => call<Family[]>("list_families"),
+  arduinoBoards: () => call<ArduinoPort[]>("arduino_boards"),
   validate: (yaml: string) => call<ValidateResult>("validate_config", { yaml }),
   generate: (yaml: string) => call<GenerateResult>("generate_firmware", { yaml }),
   registryList: () => call<OwnedDevice[]>("registry_list"),

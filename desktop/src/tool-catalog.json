@@ -21,6 +21,11 @@
   },
   {
     "class": "observe",
+    "name": "arduino_boards",
+    "summary": "Ask arduino-cli which board model is on each port."
+  },
+  {
+    "class": "observe",
     "name": "validate_config",
     "summary": "Check a device.yaml and explain each error."
   },
