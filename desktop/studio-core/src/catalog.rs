@@ -85,10 +85,13 @@ fn flash_args() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "port": { "type": "string", "description": "Serial port from list_ports, for example /dev/cu.usbmodem1101 or COM3." },
-            "family": { "type": "string", "description": "Board family from list_families, for example esp32 or avr_uno." },
-            "artifact": { "type": "string", "description": "Path to the firmware file." },
-            "usb_serial": { "type": "string", "description": "USB serial number of the board, from list_ports. The plan is blocked if this serial is not in the owned-device list." }
+            "port": { "type": "string", "description": "Serial port from list_ports, for example /dev/cu.usbmodem1101 or COM3. For the rpi family: user@host or user@host:port of the Raspberry Pi (SSH)." },
+            "family": { "type": "string", "description": "Board family from list_families: esp32, rpi, avr_uno, stm32, rp2040, or micropython." },
+            "artifact": { "type": "string", "description": "Full path to the firmware file (for rpi: the built supervisor program)." },
+            "usb_serial": { "type": "string", "description": "USB serial number of the board or the debug probe, from list_ports. The plan is blocked if this serial is not in the owned-device list." },
+            "usb_vid": { "type": "integer", "minimum": 0, "maximum": 65535, "description": "USB vendor id from list_ports. The stm32 family needs it to select the owned probe." },
+            "usb_pid": { "type": "integer", "minimum": 0, "maximum": 65535, "description": "USB product id from list_ports. The stm32 family needs it to select the owned probe." },
+            "device_id": { "type": "string", "description": "device.id from device.yaml. The rpi family needs it: the program goes to /opt/oasis/<device_id>/." }
         },
         "required": ["port", "family", "artifact"],
         "additionalProperties": false
@@ -192,7 +195,7 @@ static TOOLS: &[ToolDef] = &[
         title: "Plan a flash",
         class: ToolClass::Propose,
         summary: "Prepare a flash. You review the plan and press Flash yourself.",
-        description: "Build a flash plan: flash tool, tool path, exact argument list, firmware sha256, the matching owned device, and every blocker. The plan never runs the flash tool. No tool runs a flash: a person reviews the plan and flashes from the Oasis Studio app. Writes one action-log line.",
+        description: "Build a flash plan: every step (backup, write, and for rpi install, restart, verify) with its program, path, and exact argument list; the firmware sha256; the backup method; the matching owned device; and every blocker. The plan never runs a step. No tool runs a flash: a person reviews the plan and flashes from the Oasis Studio app. Writes one action-log line.",
         schema: flash_args,
     },
     ToolDef {
@@ -311,6 +314,13 @@ fn opt_num(m: &Map<String, Value>, key: &str) -> R<Option<f64>> {
     }
 }
 
+fn opt_u16(m: &Map<String, Value>, key: &str) -> R<Option<u16>> {
+    match m.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(v) => v.as_u64().and_then(|n| u16::try_from(n).ok()).map(Some).ok_or_else(|| bad(format!("\"{key}\" must be an integer from 0 to 65535"))),
+    }
+}
+
 fn opt_count(m: &Map<String, Value>, key: &str, max: usize) -> R<Option<usize>> {
     match m.get(key) {
         None | Some(Value::Null) => Ok(None),
@@ -365,6 +375,9 @@ pub fn call(studio: &Studio, name: &str, args: &Value, ctx: &CallContext) -> R<V
                 family: req_str(m, "family")?.into(),
                 artifact: req_str(m, "artifact")?.into(),
                 usb_serial: opt_str(m, "usb_serial")?.map(Into::into),
+                usb_vid: opt_u16(m, "usb_vid")?,
+                usb_pid: opt_u16(m, "usb_pid")?,
+                device_id: opt_str(m, "device_id")?.map(Into::into),
             };
             to_value(studio.flash_plan(&req, ctx.actor))
         }

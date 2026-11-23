@@ -20,8 +20,10 @@ export interface Simulate {
   engine: string; args: string[]; platform?: string | null; uart?: string | null;
   accepts: string[]; elf_machine?: number | null;
 }
+export type Transport = "usb" | "probe" | "ssh";
 export interface Family {
   family: string; label: string; tool: string; baud: number; chip?: string | null; args: string[];
+  transport?: Transport; backup?: { args: string[]; ext: string } | null; probe_arg?: string | null; timeout_s?: number;
   simulate?: Simulate | null;
 }
 export interface ConfigSummary {
@@ -40,10 +42,23 @@ export interface NewDevice {
   family: string | null; notes: string; owned: boolean;
 }
 export interface AuditEntry { at: string; actor: string; action: string; target: string; result: string }
-export interface PlanRequest { port: string; family: string; artifact: string; usb_serial: string | null }
+export interface PlanRequest {
+  port: string; family: string; artifact: string; usb_serial: string | null;
+  usb_vid?: number | null; usb_pid?: number | null; device_id?: string | null;
+}
+export interface FlashStep { name: string; program: string; program_path: string | null; args: string[]; summary: string; timeout_s: number }
 export interface FlashPlan {
-  port: string; family: string; tool: string; tool_path: string | null; args: string[];
-  artifact: string; artifact_sha256: string | null; owned_device: string | null; blockers: string[];
+  port: string; family: string; transport: Transport; tool: string; tool_path: string | null; args: string[];
+  steps: FlashStep[]; artifact: string; artifact_sha256: string | null; artifact_size: number | null;
+  owned_device: string | null; owned_device_id: string | null; backup_method: string | null;
+  remote_backup: string | null; blockers: string[];
+}
+export interface RunRequest { plan: PlanRequest; expected_sha256: string; allow_no_backup: boolean }
+export interface FlashLine { run_id: string; step: string; stream: "stdout" | "stderr" | "app"; text: string }
+export interface FlashStepResult { name: string; program: string; args: string[]; exit: SimExit | null; seconds: number }
+export interface FlashDone {
+  run_id: string; ok: boolean; steps: FlashStepResult[]; backup_file: string | null;
+  log_file: string | null; report_file: string | null; error: string | null;
 }
 
 export interface SimRequest { family: string; artifact: string; seconds: number }
@@ -68,7 +83,8 @@ const log = (action: string, target: string, result: string) =>
 
 const FAMILIES: Family[] = [
   { family: "esp32", label: "ESP32 (espflash)", tool: "espflash", baud: 115200, args: ["flash", "--port", "{port}", "{artifact}"] },
-  { family: "rp2040", label: "RP2040 (picotool)", tool: "picotool", baud: 115200, args: ["load", "-x", "{artifact}"] },
+  { family: "rpi", label: "Raspberry Pi (SSH, systemd)", tool: "ssh", baud: 115200, args: [], transport: "ssh" },
+  { family: "rp2040", label: "RP2040 (picotool)", tool: "picotool", baud: 115200, args: ["load", "-v", "-x", "{artifact}"], backup: { args: ["save", "-a", "{backup}"], ext: "uf2" } },
   { family: "stm32", label: "STM32 over a debug probe (probe-rs)", tool: "probe-rs", baud: 115200, chip: "STM32F103C8", args: ["download", "--chip", "{chip}", "{artifact}"],
     simulate: { engine: "renode", args: [], platform: "platforms/cpus/stm32f103.repl", uart: "usart1", accepts: ["elf"], elf_machine: 40 } },
   { family: "avr_uno", label: "Arduino Uno / ATmega328P (avrdude)", tool: "avrdude", baud: 115200, args: ["-p", "atmega328p", "-c", "arduino", "-P", "{port}", "-b", "{baud}", "-U", "flash:w:{artifact}:i"],
@@ -167,16 +183,28 @@ async function previewCall<T>(cmd: string, args: Record<string, unknown>): Promi
     case "flash_plan": {
       const r = args.request as PlanRequest;
       const fam = FAMILIES.find((f) => f.family === r.family);
-      const owned = preview.devices.find((d) => d.identity_kind === "usb_serial" && d.identity === r.usb_serial);
-      const blockers = ["Browser preview: the desktop app checks the tool and the firmware file."];
-      if (!owned) blockers.push(`USB serial ${r.usb_serial ?? "(none)"} is not in the owned-device list. Add the board on the Devices page first.`);
+      const ssh = fam?.transport === "ssh";
+      const host = r.port.split("@")[1]?.split(":")[0] ?? "";
+      const owned = ssh
+        ? preview.devices.find((d) => d.identity_kind === "hostname" && d.identity === host)
+        : preview.devices.find((d) => d.identity_kind === "usb_serial" && d.identity === r.usb_serial);
+      const blockers = [`Browser preview: the desktop app checks the tool and the firmware file${ssh ? ", and builds the SSH steps" : ""}.`];
+      if (!owned) blockers.push(ssh
+        ? `Host ${host || "(none)"} is not in the owned-device list. Add it on the Devices page (identity: Hostname) first.`
+        : `USB serial ${r.usb_serial ?? "(none)"} is not in the owned-device list. Add the board on the Devices page first.`);
       log("flash.plan", r.port, "blocked");
+      const wargs = (fam?.args ?? []).map((a) => a.replace("{port}", r.port).replace("{artifact}", r.artifact).replace("{chip}", fam?.chip ?? ""));
       return {
-        port: r.port, family: r.family, tool: fam?.tool ?? "", tool_path: null,
-        args: (fam?.args ?? []).map((a) => a.replace("{port}", r.port).replace("{artifact}", r.artifact).replace("{chip}", fam?.chip ?? "")),
-        artifact: r.artifact, artifact_sha256: null, owned_device: owned?.name ?? null, blockers,
+        port: r.port, family: r.family, transport: fam?.transport ?? "usb", tool: fam?.tool ?? "", tool_path: null, args: wargs,
+        steps: [{ name: "write", program: fam?.tool ?? "", program_path: null, args: wargs, summary: "Write and verify the new firmware.", timeout_s: 180 }],
+        artifact: r.artifact, artifact_sha256: null, artifact_size: null, owned_device: owned?.name ?? null, owned_device_id: owned?.id ?? null,
+        backup_method: null, remote_backup: null, blockers,
       } as T;
     }
+    case "flash_start":
+      throw new Error("Browser preview: flashing runs only in the desktop app.");
+    case "flash_stop":
+      return false as T;
     case "sim_plan":
       return previewSimPlan(args.request as SimRequest) as T;
     case "sim_start":
@@ -204,6 +232,8 @@ export const api = {
   registryRemove: (id: string) => call<void>("registry_remove", { id }),
   auditTail: (limit = 200) => call<AuditEntry[]>("audit_tail", { limit }),
   flashPlan: (request: PlanRequest) => call<FlashPlan>("flash_plan", { request }),
+  flashStart: (request: RunRequest) => call<string>("flash_start", { request }),
+  flashStop: () => call<boolean>("flash_stop"),
   simPlan: (request: SimRequest) => call<SimPlan>("sim_plan", { request }),
   simStart: (request: SimRequest) => call<string>("sim_start", { request }),
   simStop: () => call<boolean>("sim_stop"),
@@ -221,6 +251,14 @@ export async function onSim(onLine: (l: SimLine) => void, onDone: (d: SimDone) =
   previewEvents.addEventListener("line", l);
   previewEvents.addEventListener("done", d);
   return () => { previewEvents.removeEventListener("line", l); previewEvents.removeEventListener("done", d); };
+}
+
+/** Subscribe to flash output. Returns a function that ends the subscription. */
+export async function onFlash(onLine: (l: FlashLine) => void, onDone: (d: FlashDone) => void): Promise<() => void> {
+  if (!isDesktop) return () => {};
+  const a = await listen<FlashLine>("flash://line", (e) => onLine(e.payload));
+  const b = await listen<FlashDone>("flash://done", (e) => onDone(e.payload));
+  return () => { a(); b(); };
 }
 
 export function errText(e: unknown): string {

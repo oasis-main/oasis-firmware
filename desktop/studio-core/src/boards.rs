@@ -23,18 +23,65 @@ pub struct UsbRow {
     pub label: String,
 }
 
+/// How the app reaches the board to write firmware.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Transport {
+    /// A serial or USB port on this computer (`{port}`).
+    #[default]
+    Usb,
+    /// A debug probe on USB (probe-rs). The owned identity is the probe.
+    Probe,
+    /// A Linux computer on the network (Raspberry Pi), over SSH with key login.
+    Ssh,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Family {
     pub family: String,
     pub label: String,
     pub tool: String,
+    #[serde(default = "default_baud")]
     pub baud: u32,
     #[serde(default)]
     pub chip: Option<String>,
+    /// Write arguments. Placeholders: {port} {baud} {artifact} {chip}.
+    /// Empty for `ssh`: the app builds the SSH steps itself.
+    #[serde(default)]
     pub args: Vec<String>,
+    #[serde(default)]
+    pub transport: Transport,
+    /// Read the current firmware into a file before the write. None: the
+    /// family has no backup method yet.
+    #[serde(default)]
+    pub backup: Option<Backup>,
+    /// Probe selection argument (probe-rs `--probe`). The app adds
+    /// `<flag> VID:PID:SERIAL` so that the tool writes only to the owned probe.
+    #[serde(default)]
+    pub probe_arg: Option<String>,
+    /// Time limit for each step, in seconds.
+    #[serde(default = "default_timeout")]
+    pub timeout_s: u64,
     /// How to run firmware for this family in a simulator. None: no simulator yet.
     #[serde(default)]
     pub simulate: Option<Simulate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Backup {
+    /// Read arguments for `tool`. Placeholders as for `args`, plus {backup}
+    /// (the backup file that the app chooses).
+    pub args: Vec<String>,
+    /// File extension of the backup file: hex, bin, uf2, py.
+    pub ext: String,
+}
+
+fn default_baud() -> u32 {
+    115200
+}
+
+fn default_timeout() -> u64 {
+    180
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,6 +144,26 @@ mod tests {
             if row.confidence == Confidence::Bridge {
                 assert!(row.family.is_none(), "bridge row {} must not name a family", row.label);
             }
+        }
+    }
+
+    #[test]
+    fn every_family_has_a_write_method() {
+        for f in &table().families {
+            match f.transport {
+                Transport::Ssh => assert!(f.args.is_empty(), "{}: ssh steps come from code", f.family),
+                _ => assert!(f.args.iter().any(|a| a.contains("{artifact}")), "{}: args must name {{artifact}}", f.family),
+            }
+            if let Some(b) = &f.backup {
+                assert!(b.args.iter().any(|a| a.contains("{backup}")), "{}: backup args must name {{backup}}", f.family);
+            }
+            if f.transport == Transport::Probe {
+                assert!(f.probe_arg.is_some(), "{}: a probe family must select the probe", f.family);
+            }
+        }
+        // The four platforms of the project.
+        for name in ["esp32", "rpi", "avr_uno", "stm32"] {
+            assert!(family(name).is_some(), "missing family {name}");
         }
     }
 

@@ -29,28 +29,46 @@ usb:
   - { vid: 0x2341, pid: 0x0043, family: avr_uno,    confidence: exact,  label: "Arduino Uno R3" }
   - { vid: 0x2341, pid: null,   family: null,       confidence: bridge, label: "Arduino board (pick the model)" }
 
+# Each family has one write method. `backup` reads the current firmware into
+# a file before the write. A family without `backup` has no tested read
+# method yet; the app then asks the person to accept a flash with no backup.
+# The tools verify the write themselves: espflash and avrdude by default,
+# probe-rs with --verify, picotool with -v.
 families:
   - family: esp32
     label: "ESP32 (espflash)"
     tool: espflash
     baud: 115200
     args: ["flash", "--port", "{port}", "{artifact}"]
+  - family: rpi
+    label: "Raspberry Pi (SSH, systemd)"
+    tool: ssh
+    transport: ssh
+    timeout_s: 120
   - family: rp2040
     label: "RP2040 (picotool)"
     tool: picotool
     baud: 115200
-    args: ["load", "-x", "{artifact}"]
+    args: ["load", "-v", "-x", "{artifact}"]
+    backup:
+      args: ["save", "-a", "{backup}"]
+      ext: uf2
   - family: micropython
     label: "MicroPython board (mpremote)"
     tool: mpremote
     baud: 115200
     args: ["connect", "{port}", "cp", "{artifact}", ":main.py"]
+    backup:
+      args: ["connect", "{port}", "cp", ":main.py", "{backup}"]
+      ext: py
   - family: stm32
     label: "STM32 over a debug probe (probe-rs)"
     tool: probe-rs
+    transport: probe
     baud: 115200
     chip: STM32F103C8
-    args: ["download", "--chip", "{chip}", "{artifact}"]
+    probe_arg: "--probe"
+    args: ["download", "--verify", "--chip", "{chip}", "{artifact}"]
     simulate:
       engine: renode
       platform: platforms/cpus/stm32f103.repl
@@ -62,6 +80,9 @@ families:
     tool: avrdude
     baud: 115200
     args: ["-p", "atmega328p", "-c", "arduino", "-P", "{port}", "-b", "{baud}", "-U", "flash:w:{artifact}:i"]
+    backup:
+      args: ["-p", "atmega328p", "-c", "arduino", "-P", "{port}", "-b", "{baud}", "-U", "flash:r:{backup}:i"]
+      ext: hex
     simulate:
       engine: simavr
       args: ["-m", "atmega328p", "-f", "16000000", "{artifact}"]

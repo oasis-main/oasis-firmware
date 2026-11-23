@@ -281,7 +281,7 @@ mod tests {
         let get = |n: &str| tools.iter().find(|t| t["name"] == n).unwrap().clone();
         assert_eq!(get("validate_config")["annotations"]["readOnlyHint"], true);
         assert_eq!(get("sim_run")["annotations"]["readOnlyHint"], false);
-        assert!(get("flash_plan")["description"].as_str().unwrap().contains("never runs the flash tool"));
+        assert!(get("flash_plan")["description"].as_str().unwrap().contains("No tool runs a flash"));
     }
 
     #[test]

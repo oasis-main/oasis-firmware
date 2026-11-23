@@ -313,7 +313,7 @@ See `legacy/rpi/README.md` for full documentation.
 |----------|-----------|------------|------------|
 | ESP32    | Rust (embassy) | Wokwi | espflash, OTA |
 | RPi      | Rust (tokio) | mock_gpio | SSH, systemd |
-| Arduino  | C++ templates | simavr (Uno / ATmega328P) | arduino-cli |
+| Arduino  | C++ templates | simavr (Uno / ATmega328P) | avrdude (Oasis Studio), arduino-cli |
 | STM32    | Rust (embassy) | Renode (STM32F103) | probe-rs |
 
 Oasis Studio runs Arduino and STM32 firmware files in the simulators on the
