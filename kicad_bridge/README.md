@@ -34,7 +34,7 @@ Requires KiCAD 7.0+ for Python scripting support.
 
 ### Import existing PCB
 ```bash
-oasis-kicad import ./my-project.kicad_pro --output device.yaml
+oasis-kicad import-pcb ./my-project.kicad_pro --output device.yaml
 ```
 
 ### Generate KiCAD scaffold
