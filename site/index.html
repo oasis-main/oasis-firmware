@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Oasis Studio</title>
-  <meta name="description" content="Free, open-source desktop app to design, simulate, and flash firmware for small hardware projects. Works offline, with no account. AI agents use the same tools through MCP." />
+  <meta name="description" content="Free, open-source desktop app to design, simulate, and flash firmware for small hardware projects, and to repair the devices you already own. Works offline, with no account. AI agents use the same tools through MCP." />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -22,11 +22,12 @@
 
   <main>
     <div class="wrap hero">
-      <h1>Design, simulate, and flash firmware for the boards you own.</h1>
+      <h1>Build hardware. Fix the hardware you already have.</h1>
       <p class="lede">
         Oasis Studio is a free, open-source desktop app for small hardware projects: sensor nodes,
         greenhouse and farm controllers, and hobby robots. Find your boards on USB, run firmware in a simulator,
-        and flash a board after you check the plan. The app works offline, with no account.
+        and flash a board after you check the plan. Then use the same tools on a device you already own, to see what it does
+        and to replace its firmware when the vendor no longer supports it. The app works offline, with no account.
         An AI agent can use the same tools through MCP. Only a person can write firmware to a board.
       </p>
       <div class="cta">
@@ -38,9 +39,9 @@
 
     <section>
       <div class="wrap">
-        <h2>From a file to a board</h2>
-        <p class="sub">Each step has its own page in the app. An AI agent can do the same steps through MCP, except the write to a board.</p>
-        <div class="grid">
+        <h2>One tool set, two directions</h2>
+        <p class="sub">Most tools help you make a new board work. Oasis Studio also helps you understand and repair a board that someone else made. An AI agent can do the same steps through MCP, except the write to a board.</p>
+        <div class="grid two">
           <div class="card">
             <h3>Design</h3>
             <p>Write one <code>device.yaml</code>: the board, the sensors, the actuators, and the control loops. Oasis Studio checks the file and generates a Rust firmware project.</p>
@@ -55,6 +56,11 @@
             <h3>Flash</h3>
             <p>The Hardware page lists each serial port with its USB id, serial number, board family, and the flash tools that are installed.</p>
             <p>The Flash page builds a plan for the board. After you confirm the plan, the app backs up the current firmware, writes the new firmware, and verifies the write.</p>
+          </div>
+          <div class="card">
+            <h3>Investigate</h3>
+            <p>Work on hardware you own: a smart-home device whose cloud service shut down, a gadget with a closed app, an old controller.</p>
+            <p>See what the device reports on USB. Where the board family has a read method, save the vendor firmware before any change, so you can go back. Then put your own firmware on the device.</p>
           </div>
         </div>
       </div>
