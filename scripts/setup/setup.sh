@@ -145,7 +145,8 @@ fetch() {
   url="$(pin_field "$1" "$2" 4)"
   sha="$(pin_field "$1" "$2" 5)"
   [ -n "$url" ] || die "No fixed release file for $1 on $2."
-  [ -n "$WORK" ] || WORK="$(mktemp -d)"
+  # The caller runs fetch in "$(...)", a subshell, so fetch cannot set WORK.
+  [ -n "$WORK" ] || die "Internal error: no download folder."
   file="$WORK/$(basename "$url")"
   say "    download $url" >&2
   curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$file" "$url" || die "Download failed: $url"
@@ -308,6 +309,8 @@ elif ! ask "Install the missing programs?"; then
 fi
 
 # ---------------------------------------------------------------- install
+# One download folder for this run. cleanup deletes the folder at exit.
+WORK="$(mktemp -d)"
 if [ -n "$MISSING" ] && [ "$OS" = macos ]; then
   formulas=""
   for f in arduino-cli avrdude espflash picotool mpremote; do
