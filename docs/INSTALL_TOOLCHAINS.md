@@ -12,6 +12,47 @@ again to check the result.
 The design for the in-app setup wizard is in
 [TOOLCHAIN_SETUP_DESIGN.md](TOOLCHAIN_SETUP_DESIGN.md) (work item FW-020).
 
+## Quick setup with a script
+
+One script installs the programs for your system. The script is in
+[`scripts/setup/`](../scripts/setup/). Use the manual steps in sections 3
+to 5 if you want to choose each program yourself.
+
+| System | Command |
+|--------|---------|
+| macOS (needs Homebrew), Ubuntu 22.04 or later | `bash scripts/setup/setup.sh` |
+| Windows 10 or 11 (x64) | `powershell -ExecutionPolicy Bypass -File scripts\setup\setup.ps1` |
+
+- The default set is the flash tools: arduino-cli and the `arduino:avr`
+  core, avrdude, espflash, probe-rs, picotool, and mpremote.
+- `--tools full` (Windows: `-Tools full`) adds Rust with the
+  `thumbv7m-none-eabi` target, simavr (not on Windows), and Renode.
+- `--dry-run` (Windows: `-DryRun`) shows the plan and installs nothing.
+- `--yes` (Windows: `-Yes`) does not ask before each step.
+
+What the script does:
+
+1. The script lists each program, why Oasis Studio needs it, its size, and
+   whether it is already installed.
+2. The script asks before it installs. It installs only the missing
+   programs. It does not upgrade or remove a program.
+3. On macOS, Homebrew installs the flash tools. On Ubuntu and Windows, the
+   script downloads fixed release versions and checks the SHA-256 hash of
+   each file before it uses the file.
+4. On Ubuntu, programs go in `~/.local/share/oasis-studio/tools/`, with
+   links in `~/.local/bin/`. On Windows, programs go in
+   `%LOCALAPPDATA%\OasisStudio\tools\`, and the script adds each program
+   folder to the PATH of your user.
+5. On Ubuntu, the script asks before each `sudo` step: `apt-get install`,
+   the `dialout` group, and the USB rules for probe-rs and picotool.
+6. At the end, the script runs each program and prints its version.
+
+Ubuntu 22.04: the prebuilt probe-rs 0.32.0 needs glibc 2.39, and Ubuntu
+22.04 has glibc 2.35. On Ubuntu 22.04 the script builds probe-rs with
+`cargo install probe-rs-tools --version 0.32.0 --locked` if Rust is present
+or `--tools full` installs it. The build takes 5 to 15 minutes. Without
+Rust, the script skips probe-rs and prints this command.
+
 ## 1. What each kind of work needs
 
 You need no programs to design a device, to see the device list, or to read
