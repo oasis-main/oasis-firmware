@@ -146,6 +146,12 @@ Do not change these rules in code without a person's review.
 The MCP server needs Rust only. The other programs are for the desktop
 app, the simulators, and the Arduino build.
 
+To install the flash tools and the simulators with one command, use the
+setup script: `bash scripts/setup/setup.sh --tools full` (macOS, Ubuntu) or
+`powershell -ExecutionPolicy Bypass -File scripts\setup\setup.ps1 -Tools full`
+(Windows). See [docs/INSTALL_TOOLCHAINS.md](docs/INSTALL_TOOLCHAINS.md). The
+table below gives the manual steps.
+
 | Program | Needed for | macOS | Linux (Ubuntu/Debian) | Windows |
 |---------|------------|-------|-----------------------|---------|
 | Rust (stable, 1.77 or later) | MCP server, app, firmware | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` | same as macOS | `winget install Rustlang.Rustup` |

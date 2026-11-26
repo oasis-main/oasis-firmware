@@ -70,11 +70,25 @@
 
     <section>
       <div class="wrap">
-        <h2>Flash tools</h2>
-        <p class="sub">Oasis Studio uses the standard open-source flash tools. Install the tools for your boards. The Hardware page shows which tools the app finds.</p>
-        <pre><code>cargo install espflash probe-rs-tools   # ESP32, STM32 and RP2040 over a debug probe
-pip install mpremote                     # MicroPython boards
-# picotool, avrdude, arduino-cli: use your package manager (Homebrew, winget, apt)</code></pre>
+        <h2>Flash and simulator tools</h2>
+        <p class="sub">Oasis Studio uses the standard open-source flash tools and simulators. One script installs the tools for your system. The script installs only what is missing, checks the SHA-256 hash of each download, and asks before each step that needs sudo. Read the script before you run it.</p>
+        <div class="grid">
+          <div class="card">
+            <h3>macOS and Ubuntu</h3>
+            <pre><code>curl -fsSLO https://raw.githubusercontent.com/oasis-main/oasis-firmware/master/scripts/setup/setup.sh
+less setup.sh
+bash setup.sh</code></pre>
+            <p class="small">macOS needs <a href="https://brew.sh">Homebrew</a>. Ubuntu 22.04 or later.</p>
+          </div>
+          <div class="card">
+            <h3>Windows 10 or 11</h3>
+            <pre><code>Invoke-WebRequest -UseBasicParsing -OutFile setup.ps1 https://raw.githubusercontent.com/oasis-main/oasis-firmware/master/scripts/setup/setup.ps1
+notepad setup.ps1
+powershell -ExecutionPolicy Bypass -File setup.ps1</code></pre>
+            <p class="small">No administrator permission needed. Programs go in your user folder.</p>
+          </div>
+        </div>
+        <p class="small">The default set is the flash tools: arduino-cli and the Arduino AVR core, avrdude, espflash, probe-rs, picotool, and mpremote. Add <code>--tools full</code> (Windows: <code>-Tools full</code>) for Rust and the simulators. <code>--dry-run</code> shows the plan and installs nothing. Manual steps for each tool: <a href="https://github.com/oasis-main/oasis-firmware/blob/master/docs/INSTALL_TOOLCHAINS.md">docs/INSTALL_TOOLCHAINS.md</a>.</p>
       </div>
     </section>
 

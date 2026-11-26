@@ -1,0 +1,112 @@
+# Run the tool setup scripts (scripts/setup/) on clean systems. Each job runs
+# the script, checks the installed programs, and runs the script a second
+# time to show that it installs nothing new.
+name: setup-scripts
+
+on:
+  pull_request:
+    paths:
+      - "scripts/setup/**"
+      - ".github/workflows/setup-scripts.yml"
+  push:
+    branches: [master]
+    paths:
+      - "scripts/setup/**"
+      - ".github/workflows/setup-scripts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pinned versions agree
+        run: python3 -I scripts/setup/check_pins.py
+      - name: shellcheck
+        run: shellcheck scripts/setup/setup.sh
+      - name: PowerShell parse and PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $e = $null; $t = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile("$PWD/scripts/setup/setup.ps1", [ref]$t, [ref]$e)
+          if ($e) { $e | ForEach-Object { $_.ToString() }; exit 1 }
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+          $r = Invoke-ScriptAnalyzer -Path scripts/setup/setup.ps1 -Severity Error,Warning -ExcludeRule PSAvoidUsingWriteHost
+          $r | Format-Table -AutoSize | Out-String | Write-Host
+          if ($r | Where-Object Severity -eq 'Error') { exit 1 }
+
+  # A clean Ubuntu image with no Rust, no tools, and no user packages.
+  ubuntu-clean:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["ubuntu:22.04", "ubuntu:24.04"]
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    steps:
+      - name: Base packages of a desktop system
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends sudo ca-certificates curl git
+      - uses: actions/checkout@v4
+      - name: Dry run
+        run: bash scripts/setup/setup.sh --tools full --dry-run
+      - name: Install (full)
+        run: bash scripts/setup/setup.sh --tools full --yes
+      - name: Second run installs nothing
+        run: bash scripts/setup/setup.sh --tools full --yes | tee second.txt && grep -q "All programs for 'full' are installed." second.txt
+
+  ubuntu-arm:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install (flash)
+        run: bash scripts/setup/setup.sh --yes
+      - name: Second run installs nothing
+        run: bash scripts/setup/setup.sh --yes | tee second.txt && grep -q "All programs for 'flash' are installed." second.txt
+
+  macos:
+    runs-on: macos-latest
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install (flash) with the bash that macOS includes
+        run: /bin/bash scripts/setup/setup.sh --yes
+      - name: Install (full)
+        run: /bin/bash scripts/setup/setup.sh --tools full --yes
+      - name: Second run installs nothing
+        run: /bin/bash scripts/setup/setup.sh --tools full --yes | tee second.txt && grep -q "All programs for 'full' are installed." second.txt
+
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shell: powershell   # Windows PowerShell 5.1
+            tools: flash
+          - shell: pwsh         # PowerShell 7
+            tools: full
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install (${{ matrix.tools }})
+        run: ./scripts/setup/setup.ps1 -Tools ${{ matrix.tools }} -Yes
+      - name: Second run installs nothing
+        run: |
+          # A new step does not see the user PATH change. Read it again.
+          $env:Path = [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          ./scripts/setup/setup.ps1 -Tools ${{ matrix.tools }} -Yes *>&1 | Tee-Object -FilePath second.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if (-not (Select-String -Path second.txt -SimpleMatch "All programs for '${{ matrix.tools }}' are installed." -Quiet)) { exit 1 }
