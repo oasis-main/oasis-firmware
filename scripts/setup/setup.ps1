@@ -255,7 +255,7 @@ function Get-VersionText([string]$Name) {
     switch ($Name) {
         'arduino-cli'      { return (& arduino-cli version 2>&1 | Select-Object -First 1) }
         'arduino:avr core' { return (& arduino-cli core list 2>$null | Where-Object { $_ -match '^arduino:avr\s' } | Select-Object -First 1) }
-        'avrdude'          { return (& avrdude -? 2>&1 | Where-Object { "$_" -match 'version' } | Select-Object -First 1) }
+        'avrdude'          { return (& avrdude --version 2>&1 | Where-Object { "$_" -match '\d+\.\d+' } | Select-Object -First 1) }
         'espflash'         { return (& espflash --version 2>&1 | Select-Object -First 1) }
         'probe-rs'         { return (& probe-rs --version 2>&1 | Select-Object -First 1) }
         'picotool'         { return (& picotool version 2>&1 | Select-Object -First 1) }
@@ -289,3 +289,6 @@ if ($fail) {
     exit 1
 }
 Say 'Done. Open Oasis Studio. The Hardware page lists these programs.'
+# An explicit exit code. Without it, a caller can read $LASTEXITCODE of the
+# last program that the check ran.
+exit 0
