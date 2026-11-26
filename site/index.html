@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Oasis Studio</title>
-  <meta name="description" content="Open-source desktop app to design, simulate, flash, and command hobby hardware, and to repair the devices you already own." />
+  <meta name="description" content="Free, open-source desktop app to design, simulate, and flash firmware for small hardware projects. Works offline, with no account. AI agents use the same tools through MCP." />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -22,11 +22,12 @@
 
   <main>
     <div class="wrap hero">
-      <h1>Build hardware. Fix the hardware you already have.</h1>
+      <h1>Design, simulate, and flash firmware for the boards you own.</h1>
       <p class="lede">
-        Oasis Studio is a free, open-source desktop app for microcontrollers and single-board computers.
-        Describe a device, generate its firmware, and put it on an ESP32, RP2040, STM32, Arduino, or Raspberry Pi.
-        Then point the same tools at a device you own and find out what it does.
+        Oasis Studio is a free, open-source desktop app for small hardware projects: sensor nodes,
+        greenhouse and farm controllers, and hobby robots. Find your boards on USB, run firmware in a simulator,
+        and flash a board after you check the plan. The app works offline, with no account.
+        An AI agent can use the same tools through MCP. Only a person can write firmware to a board.
       </p>
       <div class="cta">
         <a class="btn primary" id="cta-download" href="download.html">Download</a>
@@ -37,48 +38,68 @@
 
     <section>
       <div class="wrap">
-        <h2>One tool set, two directions</h2>
-        <p class="sub">Most tools help you make a new board work. Oasis Studio also helps you understand a board that someone else made.</p>
+        <h2>From a file to a board</h2>
+        <p class="sub">Each step has its own page in the app. An AI agent can do the same steps through MCP, except the write to a board.</p>
         <div class="grid">
           <div class="card">
             <h3>Design</h3>
-            <p>Write one <code>device.yaml</code>: the board, the sensors, the actuators, the control loops.</p>
-            <p>Oasis Studio checks the file and writes Rust firmware for the board. The same file also feeds a KiCad schematic scaffold and a parts list.</p>
+            <p>Write one <code>device.yaml</code>: the board, the sensors, the actuators, and the control loops. Oasis Studio checks the file and generates a Rust firmware project.</p>
+            <p>The KiCad bridge reads a KiCad project into a <code>device.yaml</code>, and writes a KiCad project with a parts list template from a <code>device.yaml</code>.</p>
           </div>
           <div class="card">
-            <h3>Reach</h3>
-            <p>See every board on USB, with its USB id, serial number, and board family.</p>
-            <p>Oasis Studio finds your flash tools (espflash, probe-rs, picotool, avrdude, mpremote) and builds the exact command for each board.</p>
+            <h3>Simulate</h3>
+            <p>Run a firmware file with no board connected: an Arduino Uno in simavr, or an STM32F103 in Renode.</p>
+            <p>Each run has a time limit. The app shows the UART output of the firmware.</p>
           </div>
           <div class="card">
-            <h3>Investigate</h3>
-            <p>Work on hardware you own: a dead smart-home device, a gadget with a closed app, an old controller.</p>
-            <p>Read what the device reports, back up its firmware before any change, and replace the firmware when the vendor is gone.</p>
+            <h3>Flash</h3>
+            <p>The Hardware page lists each serial port with its USB id, serial number, board family, and the flash tools that are installed.</p>
+            <p>The Flash page builds a plan for the board. After you confirm the plan, the app backs up the current firmware, writes the new firmware, and verifies the write.</p>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Board families</h2>
+        <p class="sub">Each family uses the standard open-source tool for that board. Board ids and flash recipes are data in <code>boards.yaml</code>. To add a board, add a row.</p>
+        <table class="status">
+          <thead><tr><th>Family</th><th>Tool</th><th>Connection</th><th>Backup before the write</th></tr></thead>
+          <tbody>
+            <tr><td>ESP32</td><td>espflash</td><td>USB serial</td><td>not yet</td></tr>
+            <tr><td>Arduino Uno</td><td>avrdude</td><td>USB serial</td><td>yes, Intel HEX file</td></tr>
+            <tr><td>Any arduino-cli board</td><td>arduino-cli</td><td>USB serial</td><td>no (arduino-cli cannot read firmware)</td></tr>
+            <tr><td>STM32</td><td>probe-rs</td><td>debug probe</td><td>not yet</td></tr>
+            <tr><td>RP2040</td><td>picotool</td><td>USB (BOOTSEL)</td><td>yes, UF2 file</td></tr>
+            <tr><td>MicroPython</td><td>mpremote</td><td>USB serial</td><td>yes, a copy of <code>main.py</code></td></tr>
+            <tr><td>Raspberry Pi</td><td>ssh and scp</td><td>network, SSH key login</td><td>yes, a <code>.bak</code> copy on the Pi</td></tr>
+          </tbody>
+        </table>
+        <p class="sub" style="margin-top: 16px">One script installs these tools and the simulators on macOS, Ubuntu, or Windows. See <a href="download.html#tools">Flash and simulator tools</a>.</p>
       </div>
     </section>
 
     <section>
       <div class="wrap">
         <h2>Safe by design</h2>
-        <p class="sub">A tool that can flash firmware can also break a device. These rules are in the code, not only in the manual.</p>
+        <p class="sub">A tool that can flash firmware can also break a board. These rules are in the code, not only in the manual.</p>
         <div class="grid two">
           <div class="card">
-            <h3>Your devices only</h3>
-            <p>Oasis Studio writes only to devices in your owned-device list. You add each device and confirm that you own it. A flash to any other device is refused.</p>
+            <h3>Your boards only</h3>
+            <p>Oasis Studio writes only to a board in your owned-device list. Only a person adds a board to the list. The app refuses a flash to any other board.</p>
           </div>
           <div class="card">
-            <h3>You confirm every flash</h3>
-            <p>Before a flash, the app shows the board, the port, the tool, every argument, and the firmware hash. Nothing runs until you press the button.</p>
+            <h3>You confirm every write</h3>
+            <p>Before a flash, the app shows the board, the port, the tool, every argument, the SHA-256 hash of the firmware, and the backup step. Nothing runs until you confirm.</p>
           </div>
           <div class="card">
-            <h3>No shell strings</h3>
-            <p>The app starts each tool with a list of arguments. A port name or a file name cannot turn into a second command.</p>
+            <h3>No shell</h3>
+            <p>The app starts each tool with a list of arguments. No shell reads the arguments, so a port name or a file name cannot become a second command.</p>
           </div>
           <div class="card">
-            <h3>A log of every change</h3>
-            <p>Each device added, each firmware build, and each flash plan writes one line to a local activity log. The log stays on your computer.</p>
+            <h3>Each change is logged</h3>
+            <p>Each change writes one line to a local action log: the time, the actor (you, the assistant, or an MCP client), the action, and the result. The log stays on your computer.</p>
           </div>
         </div>
       </div>
@@ -86,11 +107,12 @@
 
     <section>
       <div class="wrap">
-        <h2>An assistant that proposes</h2>
+        <h2>Works with AI agents</h2>
         <p class="sub">
-          The assistant uses the same functions as the buttons. It can read a datasheet, explain a validation error,
-          write a driver, and prepare a flash plan. It cannot flash or command a device by itself. Chat arrives with
-          account sign-in in a later release. Everything else works offline, with no account.
+          The MCP (Model Context Protocol) server <code>oasis-studio-mcp</code> gives an agent the same functions as the app.
+          It works with Claude Code, Claude Desktop, Cursor, and other MCP clients. The agent can list boards, validate a
+          <code>device.yaml</code>, generate firmware, run a simulation, and prepare a flash plan. No MCP tool writes to a board.
+          The setup steps are in the <a href="https://github.com/oasis-main/oasis-firmware#for-ai-agents">README</a>.
         </p>
       </div>
     </section>
@@ -98,19 +120,24 @@
     <section>
       <div class="wrap">
         <h2>What works today</h2>
-        <p class="sub">Oasis Studio is at version 0.1. This table is the honest state.</p>
+        <p class="sub">Oasis Studio is at version 0.1. The table shows the current state.</p>
         <table class="status">
           <thead><tr><th>Feature</th><th>State</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td>USB board detection and tool check</td><td><span class="tag now">v0.1</span></td><td>ESP32, RP2040, STM32 probes, Arduino, common USB-UART bridges</td></tr>
-            <tr><td>device.yaml validation and firmware generation</td><td><span class="tag now">v0.1</span></td><td>ESP32, STM32, Teensy, Raspberry Pi targets</td></tr>
-            <tr><td>Owned-device list and activity log</td><td><span class="tag now">v0.1</span></td><td>Local files only</td></tr>
-            <tr><td>Flash plan</td><td><span class="tag now">v0.1</span></td><td>Shows the command and every blocker</td></tr>
-            <tr><td>Supervised flash and serial monitor</td><td><span class="tag next">next</span></td><td>Confirm dialog, live output, verify after flash</td></tr>
-            <tr><td>Assistant chat</td><td><span class="tag next">next</span></td><td>Needs account sign-in</td></tr>
-            <tr><td>Simulation panel</td><td><span class="tag next">next</span></td><td>Behavioral models, simavr, Renode</td></tr>
-            <tr><td>Network devices, BLE, Zigbee</td><td><span class="tag next">planned</span></td><td>Same owned-device rule</td></tr>
-            <tr><td>Exported controllers</td><td><span class="tag next">planned</span></td><td>Run a controller on another computer with no desktop app</td></tr>
+            <tr><td>Board detection, owned-device list, action log</td><td><span class="tag now">works</span></td><td>Local files only</td></tr>
+            <tr><td>Simulation</td><td><span class="tag now">works</span></td><td>Arduino Uno (simavr) and STM32F103 (Renode), with a firmware file that you build</td></tr>
+            <tr><td>MCP server</td><td><span class="tag now">works</span></td><td>Read, plan, generate files, and simulate. No tool writes to a board.</td></tr>
+            <tr><td>Tool setup scripts</td><td><span class="tag now">works</span></td><td>macOS, Ubuntu 22.04 and later, Windows. Tested in CI on each change.</td></tr>
+            <tr><td><code>device.yaml</code> validation</td><td><span class="tag now">works</span></td><td><code>oasis-build validate</code></td></tr>
+            <tr><td>Flash with backup and verify</td><td><span class="tag next">testing</span></td><td>Tested with stand-in flash tools for each family. Not yet tested on a real board.</td></tr>
+            <tr><td>Firmware generation for Raspberry Pi</td><td><span class="tag next">partial</span></td><td>Generates a Rust project. CI does not build the generated project yet.</td></tr>
+            <tr><td>Firmware generation for ESP32, STM32, Teensy</td><td><span class="tag next">partial</span></td><td>Generates a project that does not build yet</td></tr>
+            <tr><td>Installers</td><td><span class="tag next">partial</span></td><td>Built by CI for each release. Not signed or notarized yet.</td></tr>
+            <tr><td>Assistant chat in the app</td><td><span class="tag next">planned</span></td><td>The same tools and the same confirm steps as the MCP server</td></tr>
+            <tr><td>Serial monitor and boot check after a flash</td><td><span class="tag next">planned</span></td><td></td></tr>
+            <tr><td>Backup for ESP32 and STM32</td><td><span class="tag next">planned</span></td><td></td></tr>
+            <tr><td>Firmware generation for Arduino</td><td><span class="tag next">planned</span></td><td>Templates are in <code>legacy/ino/</code></td></tr>
+            <tr><td>Over-the-air update</td><td><span class="tag next">planned</span></td><td>Design only</td></tr>
           </tbody>
         </table>
       </div>
