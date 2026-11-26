@@ -322,6 +322,13 @@ if [ -n "$MISSING" ] && [ "$OS" = macos ]; then
   if missing simavr; then
     step "simavr (Homebrew tap osx-cross/avr)"
     brew tap osx-cross/avr
+    # Homebrew 7 and later loads a formula from a third-party tap only after
+    # `brew trust`. simavr needs avr-gcc from the same tap. Older Homebrew
+    # has no trust command and needs no step.
+    if brew trust --help >/dev/null 2>&1; then
+      say "Homebrew must trust the tap osx-cross/avr (simavr and avr-gcc). The script runs: brew trust --tap osx-cross/avr"
+      brew trust --tap osx-cross/avr
+    fi
     brew install osx-cross/avr/simavr
   fi
   if missing renode; then
